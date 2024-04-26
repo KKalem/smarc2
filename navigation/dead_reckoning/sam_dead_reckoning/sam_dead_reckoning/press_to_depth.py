@@ -29,7 +29,6 @@ class Press2Depth(Node):
         self.declare_node_parameters()
 
         self.robot_name = self.get_parameter("robot_name").value
-
         self.odom_frame = self.get_parameter('odom_frame').value
 
         self.base_frame = f"{self.robot_name}_{SamLinks.BASE_LINK}"
@@ -84,6 +83,7 @@ class Press2Depth(Node):
 
         # TODO default should be False
         self.declare_parameter('simulation', True)
+        
 
     # def depthCB_old(self, press_msg):
     #     try:

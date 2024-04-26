@@ -41,6 +41,7 @@ class PublishGPSPose(Node):
         # Frames
         self.map_frame = self.get_parameter('map_frame').value
         self.utm_frame = self.get_parameter('utm_frame').value
+        self.sim_time = self.get_parameter("use_sim_time").value
         self.gps_frame = f"{self.robot_name}_{SamLinks.GPS_LINK}"
 
         # Broadcast UTM to map frame
@@ -78,7 +79,7 @@ class PublishGPSPose(Node):
         # Frames
         self.declare_parameter('map_frame', 'map')
         self.declare_parameter('utm_frame', 'utm')
-
+        
 
     def sam_gps_cb(self, sam_gps):
 

@@ -145,7 +145,6 @@ class VehicleDR(Node):
         self.ts = message_filters.ApproximateTimeSynchronizer([self.thrust1_sub, self.thrust2_sub],
                                                               20, slop=20.0, allow_headerless=False)
         self.ts.registerCallback(cb=self.thrust_cb)
-
         # === Publishers ===
         odom_qos_profile = QoSProfile(depth=100)
         self.pub_odom = self.create_publisher(msg_type=Odometry, topic=DRTopics.DR_ODOM_TOPIC,
@@ -176,12 +175,14 @@ class VehicleDR(Node):
         self.declare_parameter("dvl_period", 0.1)
         self.declare_parameter("dr_period", 0.02)
         self.declare_parameter("simulation", True)
+        
 
     def thrust_cmd_cb(self, thrust_cmd_msg):
         self.thrust_cmd = thrust_cmd_msg
 
     def gps_cb(self, gps_msg):
         self.get_logger().info("GPS received")
+
         try:
             # ROS1
             # goal_point_local = self.listener.transformPoint("map", goal_point)
@@ -215,7 +216,7 @@ class VehicleDR(Node):
                 # gps_map = self.listener.transformPoint(self.map_frame, goal_point)
                 gps_map = self.tf_buffer.transform(object_stamped=goal_point,
                                                    target_frame=self.map_frame)
-
+            
                 if self.init_heading:
                     self.get_logger().info(f"DR node: broadcasting transform {self.map_frame} to {self.odom_frame}")
                     # SBG points to north while map's x axis points east (ENU) so 
@@ -266,7 +267,6 @@ class VehicleDR(Node):
     def dr_timer(self):
         # self.get_logger().info(f"DR_timer - m2o: {self.init_m2o}  stim:{self.init_stim}  heading:{self.init_heading}")
         if self.init_m2o and self.init_stim:
-
             pose_t = np.concatenate([self.pos_t, self.rot_t])  # Catch latest estimate from IMU
             rot_vel_t = self.vel_rot  # TODO: rn this keeps the last vels even if the IMU dies
             lin_vel_t = np.zeros(3)
