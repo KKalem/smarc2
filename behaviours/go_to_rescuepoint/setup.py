@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'rescuepoint_follower = go_to_rescuepoint.rescuepoint_follower:main',
         ],
     },
 )
