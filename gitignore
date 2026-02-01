@@ -1,0 +1,145 @@
+# ROS2 Build Artifacts
+build/
+install/
+log/
+.colcon_install_layout
+COLCON_IGNORE
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+*.mo
+*.pot
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.cproject
+.pydevproject
+.settings/
+*.code-workspace
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# C++ Build Artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+!**/CMakeLists.txt
+compile_commands.json
+
+# Documentation
+*.pdf
+*.aux
+*.log
+*.synctex.gz
+
+# Bags and data files
+*.bag
+*.db3
+*.mcap
+
+# Docker
+.dockerignore
+*.tar
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+*.rej
+*.swn
+.*.swp
+
+# ROS-specific
+devel/
+devel_isolated/
+*.msg.md
+msg_gen/
+srv_gen/
+
+# Simulation artifacts
+; *.world~
+; *.sdf~
+
+# Unity builds (if present)
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+Assets/AssetStoreTools*
+
+# Rosbag
+*.active
+
+# Custom logs and outputs
+*.out
+*.csv
+results/
+output/
+
+# SSH keys and credentials
+*.pem
+*.key
+*_rsa
+*_rsa.pub
+secrets/
+credentials/
+
+# Large files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Testing
+test_results/
+.tox/
+
+# Lock files (keep for reproducibility, but optional)
+# *.lock
