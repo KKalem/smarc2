@@ -1,0 +1,14 @@
+{
+  "name": "com.smarc.assets",
+  "version": "0.0.1",
+  "displayName": "SMARC Unity Assets",
+  "description": "Contains the assorted models, scripts and utils used by all SMARC Unity projects.",
+  "documentationUrl": "https://github.com/martkartasev/SMARC_Unity",
+  "changelogUrl": "https://github.com/martkartasev/SMARC_Unity",
+  "licensesUrl": "https://github.com/martkartasev/SMARC_Unity",
+  "author": {
+    "name": "Mart Kartasev",
+    "email": "mart.kartasev@gmail.com",
+    "url": "https://www.linkedin.com/in/mart-karta%C5%A1ev-a67410114/"
+  }
+}
