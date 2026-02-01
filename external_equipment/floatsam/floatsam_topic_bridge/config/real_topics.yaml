@@ -1,0 +1,102 @@
+# Floatsam Real Hardware Topic Mappings
+# ⚠️ PLACEHOLDER TOPICS - MUST BE UPDATED WITH ACTUAL HARDWARE TOPICS ⚠️
+
+sensors:
+  # GPS sensors (dual GPS setup)
+  gps_left:
+    input_topic: '/floatsam/hardware/gps_left/fix'  # PLACEHOLDER
+    output_topic: 'core/gps_left'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  gps_right:
+    input_topic: '/floatsam/hardware/gps_right/fix'  # PLACEHOLDER
+    output_topic: 'core/gps_right'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  # RTK GPS
+  rtk_left:
+    input_topic: '/floatsam/hardware/rtk_left/fix'  # PLACEHOLDER
+    output_topic: 'core/rtk_left'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  rtk_right:
+    input_topic: '/floatsam/hardware/rtk_right/fix'  # PLACEHOLDER
+    output_topic: 'core/rtk_right'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  # IMU (raw data only)
+  imu:
+    input_topic: '/floatsam/hardware/imu/data'  # PLACEHOLDER
+    output_topic: 'core/imu'
+    msg_type: 'sensor_msgs/Imu'
+    
+  # Depth pressure
+  depth_pressure:
+    input_topic: '/floatsam/hardware/pressure/depth'  # PLACEHOLDER
+    output_topic: 'smarc/depth'
+    msg_type: 'sensor_msgs/FluidPressure'
+    
+  # DVL
+  dvl:
+    input_topic: '/floatsam/hardware/dvl/data'  # PLACEHOLDER
+    output_topic: 'core/dvl'
+    msg_type: 'sensor_msgs/Range'
+    
+  # Leak detector
+  leak:
+    input_topic: '/floatsam/hardware/leak_sensor'  # PLACEHOLDER
+    output_topic: 'core/leak'
+    msg_type: 'std_msgs/Bool'
+    
+  # Odometry
+  odom:
+    input_topic: '/floatsam/hardware/odom'  # PLACEHOLDER
+    output_topic: 'smarc/odom'
+    msg_type: 'nav_msgs/Odometry'
+    
+  # Battery
+  battery:
+    input_topic: '/floatsam/hardware/battery'  # PLACEHOLDER
+    output_topic: 'smarc/battery_percent'
+    msg_type: 'std_msgs/Float32'
+
+# Actuators
+actuators:
+  prop_left_cmd:
+    input_topic: '/floatsam/hardware/prop_left/cmd'  # PLACEHOLDER
+    output_topic: 'actuators/prop_left_cmd'
+    msg_type: 'std_msgs/Float32'
+    
+  prop_left_fb:
+    input_topic: '/floatsam/hardware/prop_left/feedback'  # PLACEHOLDER
+    output_topic: 'actuators/prop_left_fb'
+    msg_type: 'std_msgs/Float32'
+    
+  prop_right_cmd:
+    input_topic: '/floatsam/hardware/prop_right/cmd'  # PLACEHOLDER
+    output_topic: 'actuators/prop_right_cmd'
+    msg_type: 'std_msgs/Float32'
+    
+  prop_right_fb:
+    input_topic: '/floatsam/hardware/prop_right/feedback'  # PLACEHOLDER
+    output_topic: 'actuators/prop_right_fb'
+    msg_type: 'std_msgs/Float32'
+
+# Payload
+payload:
+  sidescan:
+    input_topic: '/floatsam/hardware/sidescan/image'  # PLACEHOLDER
+    output_topic: 'payload/sidescan'
+    msg_type: 'sensor_msgs/Image'
+    
+  mbes_bathy:
+    input_topic: '/floatsam/hardware/mbes/points'  # PLACEHOLDER
+    output_topic: 'payload/mbes_bathy_points'
+    msg_type: 'sensor_msgs/PointCloud2'
+
+# Computed from odom
+compute_from_odom:
+  heading: 'smarc/heading'
+  course: 'smarc/course'
+  speed: 'smarc/speed'
+  latlon: 'smarc/latlon'

@@ -85,37 +85,37 @@ string INS_IMU_TOPIC = "standard/imu"
 
 
 #Sensors
-string GPS_RAW_TOPIC = sensors/gps/raw
-string GPS_TOPIC = sensors/gps
+string GPS_RAW_TOPIC = 'sensors/gps/raw'
+string GPS_TOPIC = 'sensors/gps'
 
-string SVS_RAW_TOPIC = sensors/svs/raw
-string SVS_TOPIC = sensors/svs
+string SVS_RAW_TOPIC = 'sensors/svs/raw'
+string SVS_TOPIC = 'sensors/svs'
 
-string CTD_RAW_TOPIC = sensors/ctd/raw
-string CTD_TOPIC = sensors/ctd
+string CTD_RAW_TOPIC = 'sensors/ctd/raw'
+string CTD_TOPIC = 'sensors/ctd'
 
-string DO_RAW_REQUEST_TOPIC = sensors/do/raw_request
-string DO_RAW_TOPIC = sensors/do/raw
-string DO_TOPIC = sensors/do
+string DO_RAW_REQUEST_TOPIC = 'sensors/do/raw_request'
+string DO_RAW_TOPIC = 'sensors/do/raw'
+string DO_TOPIC = 'sensors/do'
 
-string TURB_RAW_TOPIC = sensors/turbidity/raw
-string TURB_TOPIC = sensors/turbidity
+string TURB_RAW_TOPIC = 'sensors/turbidity/raw'
+string TURB_TOPIC = 'sensors/turbidity'
 
-string FLUORESCENCE_RAW_TOPIC = sensors/fluorescence/raw
-string FLUORESCENCE_TOPIC = sensors/fluorescence
+string FLUORESCENCE_RAW_TOPIC = 'sensors/fluorescence/raw'
+string FLUORESCENCE_TOPIC = 'sensors/fluorescence'
 
-string DVL_TOPIC = sensors/dvl
+string DVL_TOPIC = 'sensors/dvl'
 
-string FLS_WC_TOPIC = sensors/fls/watercolumn
-string FLS_IMAGE_TOPIC = sensors/fls/watercolumn/image
+string FLS_WC_TOPIC = 'sensors/fls/watercolumn'
+string FLS_IMAGE_TOPIC = 'sensors/fls/watercolumn/image'
 
-string MBES_WC_TOPIC = sensors/mbes/watercolumn
-string MBES_IMAGE_TOPIC = sensors/mbes/watercolumn/image
-string MBES_BATHY_TOPIC = sensors/mbes/bathymetry
-string MBES_BATHY_POINTCLOUD_TOPIC = sensors/mbes/bathymetry/points
+string MBES_WC_TOPIC = 'sensors/mbes/watercolumn'
+string MBES_IMAGE_TOPIC = 'sensors/mbes/watercolumn/image'
+string MBES_BATHY_TOPIC = 'sensors/mbes/bathymetry'
+string MBES_BATHY_POINTCLOUD_TOPIC = 'sensors/mbes/bathymetry/points'
 
-string USBL_CORRECTION_TOPIC = "sensors/usbl/correction"
+string USBL_CORRECTION_TOPIC = 'sensors/usbl/correction'
 # Measured USBL position of Lolo wrt to the topside unit in a local ENU frame.
-string USBL_RELATIVE_TOPIC = "sensors/usbl/relative_pose"
+string USBL_RELATIVE_TOPIC = 'sensors/usbl/relative_pose'
 
-string LEAK_TOPIC = "sensor/leak"
+string LEAK_TOPIC = 'sensor/leak'

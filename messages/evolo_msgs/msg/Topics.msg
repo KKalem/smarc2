@@ -3,12 +3,12 @@
 
 
 #communication to and from captain
-string EVOLO_CAPTAIN_TO = captain/to
-string EVOLO_CAPTAIN_FROM= captain/from
-string EVOLO_CAPTAIN_STATE= captain/state
+string EVOLO_CAPTAIN_TO = 'captain/to'
+string EVOLO_CAPTAIN_FROM = 'captain/from'
+string EVOLO_CAPTAIN_STATE = 'captain/state'
 
-string EVOLO_MQTT_RECEIVE = mqtt/fromevolo
-string EVOLO_MQTT_SEND = mqtt/toevolo
+string EVOLO_MQTT_RECEIVE = 'mqtt/fromevolo'
+string EVOLO_MQTT_SEND = 'mqtt/toevolo'
 
 #TODO LIDAR
 

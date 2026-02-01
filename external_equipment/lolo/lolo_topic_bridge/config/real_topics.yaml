@@ -1,0 +1,107 @@
+# LoLo Real Hardware Topic Mappings
+# ⚠️ PLACEHOLDER TOPICS - MUST BE UPDATED WITH ACTUAL HARDWARE TOPICS ⚠️
+
+# These will need to be computed from real hardware sensors
+smarc_format_topics:
+  altitude:
+    input_topic: '/lolo/hardware/altitude'  # PLACEHOLDER: Computed from DVL or sonar
+    output_topic: 'smarc/altitude'
+    msg_type: 'std_msgs/Float32'
+    
+  battery_percent:
+    input_topic: '/lolo/hardware/battery'  # PLACEHOLDER
+    output_topic: 'smarc/battery_percent'
+    msg_type: 'std_msgs/Float32'
+    
+  course:
+    input_topic: '/lolo/hardware/course'  # PLACEHOLDER: Computed from navigation
+    output_topic: 'smarc/course'
+    msg_type: 'std_msgs/Float32'
+    
+  depth:
+    input_topic: '/lolo/hardware/depth'  # PLACEHOLDER
+    output_topic: 'smarc/depth'
+    msg_type: 'std_msgs/Float32'
+    
+  heading:
+    input_topic: '/lolo/hardware/heading'  # PLACEHOLDER
+    output_topic: 'smarc/heading'
+    msg_type: 'std_msgs/Float32'
+    
+  latlon:
+    input_topic: '/lolo/hardware/latlon'  # PLACEHOLDER: Computed from GPS/navigation
+    output_topic: 'smarc/latlon'
+    msg_type: 'geographic_msgs/GeoPoint'
+    
+  odom:
+    input_topic: '/lolo/hardware/odom'  # PLACEHOLDER: From dead reckoning/SLAM
+    output_topic: 'smarc/odom'
+    msg_type: 'nav_msgs/Odometry'
+    
+  speed:
+    input_topic: '/lolo/hardware/speed'  # PLACEHOLDER: From DVL or computed
+    output_topic: 'smarc/speed'
+    msg_type: 'std_msgs/Float32'
+
+# Raw sensor topics
+sensors:
+  gps:
+    input_topic: '/lolo/hardware/gps/fix'  # PLACEHOLDER
+    output_topic: 'core/gps'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  imu:
+    input_topic: '/lolo/hardware/imu/data'  # PLACEHOLDER
+    output_topic: 'core/imu'
+    msg_type: 'sensor_msgs/Imu'
+    
+  depth_pressure:
+    input_topic: '/lolo/hardware/pressure_sensor'  # PLACEHOLDER
+    output_topic: 'core/depth_pressure'
+    msg_type: 'sensor_msgs/FluidPressure'
+    
+  dvl:
+    input_topic: '/lolo/hardware/dvl/data'  # PLACEHOLDER
+    output_topic: 'core/dvl'
+    msg_type: 'sensor_msgs/Range'
+    
+  leak:
+    input_topic: '/lolo/hardware/leak_sensor'  # PLACEHOLDER
+    output_topic: 'core/leak'
+    msg_type: 'std_msgs/Bool'
+
+# Actuators (PLACEHOLDER topics)
+actuators:
+  elevator_cmd:
+    input_topic: '/lolo/hardware/elevator/cmd'  # PLACEHOLDER
+    output_topic: 'actuators/elevator_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  elevator_fb:
+    input_topic: '/lolo/hardware/elevator/feedback'  # PLACEHOLDER
+    output_topic: 'actuators/elevator_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  thruster_port_cmd:
+    input_topic: '/lolo/hardware/thruster_port/cmd'  # PLACEHOLDER
+    output_topic: 'actuators/thruster_port_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  thruster_port_fb:
+    input_topic: '/lolo/hardware/thruster_port/feedback'  # PLACEHOLDER
+    output_topic: 'actuators/thruster_port_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  # Add other actuators as needed...
+
+# Payload
+payload:
+  sidescan:
+    input_topic: '/lolo/hardware/sidescan/image'  # PLACEHOLDER
+    output_topic: 'payload/sidescan'
+    msg_type: 'sensor_msgs/Image'
+  
+  mbes_bathy:
+    input_topic: '/lolo/hardware/mbes/points'  # PLACEHOLDER
+    output_topic: 'payload/mbes_bathy_points'
+    msg_type: 'sensor_msgs/PointCloud2'

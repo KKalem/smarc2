@@ -1,0 +1,186 @@
+# LoLo Simulator Topic Mappings
+# Maps simulator topics to standard SMaRC topics
+# Note: LoLo simulator already publishes many topics in SMaRC format!
+
+# These are already in SMaRC format, just pass through
+smarc_format_topics:
+  altitude:
+    input_topic: '/lolo/smarc/altitude'
+    output_topic: 'smarc/altitude'
+    msg_type: 'std_msgs/Float32'
+    
+  battery_percent:
+    input_topic: '/lolo/smarc/battery_percent'
+    output_topic: 'smarc/battery_percent'
+    msg_type: 'std_msgs/Float32'
+    
+  course:
+    input_topic: '/lolo/smarc/course'
+    output_topic: 'smarc/course'
+    msg_type: 'std_msgs/Float32'
+    
+  depth:
+    input_topic: '/lolo/smarc/depth'
+    output_topic: 'smarc/depth'
+    msg_type: 'std_msgs/Float32'
+    
+  heading:
+    input_topic: '/lolo/smarc/heading'
+    output_topic: 'smarc/heading'
+    msg_type: 'std_msgs/Float32'
+    
+  latlon:
+    input_topic: '/lolo/smarc/latlon'
+    output_topic: 'smarc/latlon'
+    msg_type: 'geographic_msgs/GeoPoint'
+    
+  odom:
+    input_topic: '/lolo/smarc/odom'
+    output_topic: 'smarc/odom'
+    msg_type: 'nav_msgs/Odometry'
+    
+  speed:
+    input_topic: '/lolo/smarc/speed'
+    output_topic: 'smarc/speed'
+    msg_type: 'std_msgs/Float32'
+
+# Raw sensor topics
+sensors:
+  gps:
+    input_topic: '/lolo/core/gps'
+    output_topic: 'core/gps'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  imu:
+    input_topic: '/lolo/core/imu'
+    output_topic: 'core/imu'
+    msg_type: 'sensor_msgs/Imu'
+    
+  depth_pressure:
+    input_topic: '/lolo/core/depth_pressure'
+    output_topic: 'core/depth_pressure'
+    msg_type: 'sensor_msgs/FluidPressure'
+    
+  dvl:
+    input_topic: '/lolo/core/dvl'
+    output_topic: 'core/dvl'
+    msg_type: 'sensor_msgs/Range'
+    
+  leak:
+    input_topic: '/lolo/core/leak'
+    output_topic: 'core/leak'
+    msg_type: 'std_msgs/Bool'
+
+# Actuator feedback topics
+actuators:
+  elevator_cmd:
+    input_topic: '/lolo/actuators/elevator_cmd'
+    output_topic: 'actuators/elevator_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  elevator_fb:
+    input_topic: '/lolo/actuators/elevator_fb'
+    output_topic: 'actuators/elevator_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  elevon_port_cmd:
+    input_topic: '/lolo/actuators/elevon_port_cmd'
+    output_topic: 'actuators/elevon_port_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  elevon_port_fb:
+    input_topic: '/lolo/actuators/elevon_port_fb'
+    output_topic: 'actuators/elevon_port_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  elevon_strb_cmd:
+    input_topic: '/lolo/actuators/elevon_strb_cmd'
+    output_topic: 'actuators/elevon_strb_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  rudder_cmd:
+    input_topic: '/lolo/actuators/rudder_cmd'
+    output_topic: 'actuators/rudder_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  rudder_port_fb:
+    input_topic: '/lolo/actuators/rudder_port_fb'
+    output_topic: 'actuators/rudder_port_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  rudder_stbd_fb:
+    input_topic: '/lolo/actuators/rudder_stbd_fb'
+    output_topic: 'actuators/rudder_stbd_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  thruster_port_cmd:
+    input_topic: '/lolo/actuators/thruster_port_cmd'
+    output_topic: 'actuators/thruster_port_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  thruster_port_fb:
+    input_topic: '/lolo/actuators/thruster_port_fb'
+    output_topic: 'actuators/thruster_port_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  thruster_strb_cmd:
+    input_topic: '/lolo/actuators/thruster_strb_cmd'
+    output_topic: 'actuators/thruster_strb_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  thruster_strb_fb:
+    input_topic: '/lolo/actuators/thruster_strb_fb'
+    output_topic: 'actuators/thruster_strb_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  vertical_thruster_back_port_cmd:
+    input_topic: '/lolo/actuators/vertical_thruster_back_port_cmd'
+    output_topic: 'actuators/vertical_thruster_back_port_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  vertical_thruster_back_port_fb:
+    input_topic: '/lolo/actuators/vertical_thruster_back_port_fb'
+    output_topic: 'actuators/vertical_thruster_back_port_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  vertical_thruster_back_strb_cmd:
+    input_topic: '/lolo/actuators/vertical_thruster_back_strb_cmd'
+    output_topic: 'actuators/vertical_thruster_back_strb_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  vertical_thruster_back_strb_fb:
+    input_topic: '/lolo/actuators/vertical_thruster_back_strb_fb'
+    output_topic: 'actuators/vertical_thruster_back_strb_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  vertical_thruster_front_port_cmd:
+    input_topic: '/lolo/actuators/vertical_thruster_front_port_cmd'
+    output_topic: 'actuators/vertical_thruster_front_port_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  vertical_thruster_front_port_fb:
+    input_topic: '/lolo/actuators/vertical_thruster_front_port_fb'
+    output_topic: 'lolo/actuators/vertical_thruster_front_port_fb'
+    msg_type: 'std_msgs/Float32'
+  
+  vertical_thruster_front_strb_cmd:
+    input_topic: '/lolo/actuators/vertical_thruster_front_strb_cmd'
+    output_topic: 'lolo/actuators/vertical_thruster_front_strb_cmd'
+    msg_type: 'std_msgs/Float32'
+  
+  vertical_thruster_front_strb_fb:
+    input_topic: '/lolo/actuators/vertical_thruster_front_strb_fb'
+    output_topic: 'lolo/actuators/vertical_thruster_front_strb_fb'
+    msg_type: 'std_msgs/Float32'
+
+# Payload sensors
+payload:
+  sidescan:
+    input_topic: '/lolo/payload/sidescan'
+    output_topic: 'lolo/payload/sidescan'
+    msg_type: 'sensor_msgs/Image'
+  
+  mbes_bathy:
+    input_topic: '/lolo/mbes/map_gt/bathy_points'
+    output_topic: 'lolo/mbes/bathy_points'
+    msg_type: 'sensor_msgs/PointCloud2'

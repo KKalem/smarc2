@@ -1,0 +1,102 @@
+# Floatsam Simulator Topic Mappings
+# Maps simulator topics to standard SMaRC topics
+
+sensors:
+  # GPS sensors (dual GPS setup)
+  gps_left:
+    input_topic: '/floatsam_usv/core/gps_left'
+    output_topic: 'core/gps_left'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  gps_right:
+    input_topic: '/floatsam_usv/core/gps_right'
+    output_topic: 'core/gps_right'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  # RTK GPS (high precision)
+  rtk_left:
+    input_topic: '/floatsam_usv/core/rtk_left'
+    output_topic: 'core/rtk_left'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  rtk_right:
+    input_topic: '/floatsam_usv/core/rtk_right'
+    output_topic: 'core/rtk_right'
+    msg_type: 'sensor_msgs/NavSatFix'
+    
+  # IMU (raw data only, heading comes from odom)
+  imu:
+    input_topic: '/floatsam_usv/core/imu'
+    output_topic: 'core/imu'
+    msg_type: 'sensor_msgs/Imu'
+    
+  # Depth pressure sensor
+  depth_pressure:
+    input_topic: '/floatsam_usv/core/depth_pressure'
+    output_topic: 'smarc/depth'
+    msg_type: 'sensor_msgs/FluidPressure'
+    
+  # DVL (Doppler Velocity Log)
+  dvl:
+    input_topic: '/floatsam_usv/core/dvl'
+    output_topic: 'core/dvl'
+    msg_type: 'sensor_msgs/Range'
+    
+  # Leak detector
+  leak:
+    input_topic: '/floatsam_usv/core/leak'
+    output_topic: 'core/leak'
+    msg_type: 'std_msgs/Bool'
+    
+  # Ground truth odometry (also computes heading, course, speed)
+  odom_gt:
+    input_topic: '/floatsam_usv/odom_gt'
+    output_topic: 'smarc/odom'
+    msg_type: 'nav_msgs/Odometry'
+    
+  # Battery
+  battery:
+    input_topic: '/floatsam_usv/smarc/battery_percent'
+    output_topic: 'smarc/battery_percent'
+    msg_type: 'std_msgs/Float32'
+
+# Actuator topics (for feedback/monitoring)
+actuators:
+  prop_left_cmd:
+    input_topic: '/floatsam_usv/actuators/prop_left_cmd'
+    output_topic: 'actuators/prop_left_cmd'
+    msg_type: 'std_msgs/Float32'
+    
+  prop_left_fb:
+    input_topic: '/floatsam_usv/actuators/prop_left_fb'
+    output_topic: 'actuators/prop_left_fb'
+    msg_type: 'std_msgs/Float32'
+    
+  prop_right_cmd:
+    input_topic: '/floatsam_usv/actuators/prop_right_cmd'
+    output_topic: 'actuators/prop_right_cmd'
+    msg_type: 'std_msgs/Float32'
+    
+  prop_right_fb:
+    input_topic: '/floatsam_usv/actuators/prop_right_fb'
+    output_topic: 'actuators/prop_right_fb'
+    msg_type: 'std_msgs/Float32'
+
+# Payload sensors
+payload:
+  sidescan:
+    input_topic: '/floatsam_usv/payload/sidescan'
+    output_topic: 'payload/sidescan'
+    msg_type: 'sensor_msgs/Image'
+    
+  mbes_bathy:
+    input_topic: '/floatsam_usv/mbes/map_gt/bathy_points'
+    output_topic: 'payload/mbes_bathy'
+    msg_type: 'sensor_msgs/PointCloud2'
+
+# Computed from odom: heading, course, speed, latlon
+compute_from_odom:
+  heading: 'smarc/heading'  # Orientation from odom quaternion
+  course: 'smarc/course'    # Direction of travel from velocity
+  speed: 'smarc/speed'      # Velocity magnitude
+  latlon: 'smarc/latlon'    # Will use best available GPS
