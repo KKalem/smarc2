@@ -11,6 +11,8 @@ import traceback
 
 from .floatsam_common import FloatSam
 
+#from std_msgs.msg import Float32
+from smarc_msgs.msg import FloatStamped
 from geometry_msgs.msg import  PointStamped, PoseStamped
 from geographic_msgs.msg import GeoPoint
 from geometry_msgs.msg import PointStamped
@@ -31,6 +33,12 @@ class MoveToActionFloatSam():
         self.MAP_FRAME : str = self._robot_name + '/map'
         self._floatsam = FloatSam(node, self._robot_name)
 
+        self._default_goal_tolerance=5  # a cazzo 
+
+        self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, '/ctrl/yaw_setpoint', 10)
+
+        self._speed_reference_publisher = self._node.create_publisher(FloatStamped, '/ctrl/velocity_setpoint', 10)
+
         # create the gentler action server to expose 'move_to'
         self._as = GentlerActionServer(
             node,
@@ -43,6 +51,11 @@ class MoveToActionFloatSam():
             loop_frequency=10
         )
 
+        # timer: when the action server starts, print the floatsam position read from odom_gt
+        # tries every 0.5s and times out after 5 seconds
+        self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
+        self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
+
     @property
     def now_stamp(self):
         return self._node.get_clock().now().to_msg()
@@ -54,13 +67,54 @@ class MoveToActionFloatSam():
     def log(self, msg: str):
         self._node.get_logger().info(msg)
 
-    
+    def _check_initial_position(self):
+        """Timer callback: print the first floatsam position received from odom_gt (or timeout)."""
+        if self._floatsam.floatsam_in_map is not None:
+            p = self._floatsam.floatsam_in_map.pose.position
+            self._node.get_logger().info(f"Floatsam position from odom_gt: [{p.x:.2f}, {p.y:.2f}, {p.z:.2f}]")
+            try:
+                self._initial_pos_timer.cancel()
+            except Exception:
+                pass
+        else:
+            now = int(self._node.get_clock().now().nanoseconds * 1e-9)
+            if now > self._initial_pos_deadline:
+                self._node.get_logger().warning("Timed out waiting for floatsam position from odom_gt")
+                try:
+                    self._initial_pos_timer.cancel()
+                except Exception:
+                    pass
+
     def _on_goal_received(self, goal_request: dict) -> bool:
-        self.log("PISELLI\n")
+        
+        self._node.get_logger().info(f"Goal request received: {goal_request} piselli")
+
+        try:
+            # first transform the latlon goal into UTM
+            gp : GeoPoint = GeoPoint()
+            gp.latitude = goal_request['latitude']
+            gp.longitude = goal_request['longitude']
+            
+            self._goal_in_map = self._floatsam.convert_geopoint_to_map_pose_stamped(gp)
+
+            self._goal_tolerance = float(goal_request['tolerance']) if 'tolerance' in goal_request else self._default_goal_tolerance
+           
+            self._goal_speed = goal_request['speed']
+
+            pos = self._goal_in_map.pose.position
+            
+            self._node.get_logger().info(f"Received goal in map: [{pos.x:.2f},{pos.y:.2f},{pos.z:.2f}], tolerance: {self._goal_tolerance}, speed: {self._goal_speed}")
+            
+            return True
+        
+        except:
+            self._node.get_logger().error("Failed to parse goal request")
+            traceback.print_exc()
+            return False
 
 
     def _on_cancel_received(self) -> bool:
-        self.log("Cancel requested, stopping...")
+        self._node.get_logger().info("Cancel requested, stopping...")
         self._goal_in_map = None
         return True
 
@@ -70,16 +124,49 @@ class MoveToActionFloatSam():
 
     def _loop_inner(self) -> bool|None:
         if self._goal_in_map is None:
-            self.log("No goal set, failing...")
+            self._node.get_logger().info("No goal set, failing...")
             return False
 
         if self._goal_tolerance is None:
-            self.log("No goal tolerance set, failing...")
+            self._node.get_logger().info("No goal tolerance set, failing...")
             return False
 
         if self._floatsam.floatsam_in_map is None:
-            self.log("No floatsam position available yet, waiting...")
+            self._node.get_logger().info("No floatsam position available yet, waiting...")
             return None
+        
+        goal_position = np.array([self._goal_in_map.pose.position.x,
+                                  self._goal_in_map.pose.position.y])
+        
+        self_position = np.array([self._floatsam.floatsam_in_map.pose.position.x,
+                                  self._floatsam.floatsam_in_map.pose.position.y])
+        
+        self._node.get_logger().info(f"Current position: [{self_position[0]:.2f}, {self_position[1]:.2f}]")
+        self._node.get_logger().info(f"Goal position:    [{goal_position[0]:.2f}, {goal_position[1]:.2f}]")
+        
+        goal_error = goal_position - self_position
+        goal_error_mag = np.linalg.norm(goal_error)
+        self._distance_remaining = float(goal_error_mag)
+
+        if self._distance_remaining <= self._goal_tolerance:
+            self._node.get_logger().info(f"Reached goal within tolerance {self._goal_tolerance}m")
+            return True
+        
+
+        #calcuate error heading and speed
+        error_heading = float(np.arctan2(goal_error[1], goal_error[0]))
+        speed = float(self._goal_speed)
+        
+        yaw_msg = FloatStamped()
+        speed_msg = FloatStamped()
+        now = self._node.get_clock().now().to_msg()
+        yaw_msg.header.stamp = now
+        yaw_msg.data = error_heading
+        speed_msg.header.stamp = now
+        speed_msg.data = speed
+        self._yaw_reference_publisher.publish(yaw_msg)
+        self._speed_reference_publisher.publish(speed_msg)
+
         return None
 
     def _give_feedback(self) -> str:
