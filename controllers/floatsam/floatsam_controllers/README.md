@@ -273,7 +273,7 @@ Look for warnings in captain node logs:
 
 ## Integration with Action Server
 
-Your [floatsam_move_to_server.py](../../behaviours/floatsam/floatsam_move_to/floatsam_move_to/floatsam_move_to_server.py) should publish to:
+[floatsam_move_to_server.py](../../behaviours/floatsam/floatsam_move_to/floatsam_move_to/floatsam_move_to_server.py) should publish to:
 
 ```python
 from floatsam_msgs.msg import Topics as FloatsamTopics
@@ -288,9 +288,4 @@ velocity_setpoint_pub.publish(Float32(data=desired_speed_m_s))
 
 ## Future Improvements
 
-- [ ] Add dynamic reconfigure for online gain tuning
-- [ ] Implement adaptive gain scheduling based on velocity/sea state
-- [ ] Add feedforward term for improved yaw tracking
-- [ ] Log delta RPM statistics for post-analysis
-- [ ] Add thruster fault detection (asymmetric response detection)
-- [ ] Implement trajectory tracking (not just point-to-point)
+

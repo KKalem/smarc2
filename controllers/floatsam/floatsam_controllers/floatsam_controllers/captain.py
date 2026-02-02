@@ -136,7 +136,7 @@ class Captain(Node):
                                                        FloatsamTopics.THRUSTER_STRB_CMD, 1)
 
     def time_now(self):
-        return self.get_clock().now().nanoseconds * 1e-9
+        return self.get_clock().now()
 
     def declare_node_parameters(self):
         """Declare all configurable parameters for PIDs and mixer"""

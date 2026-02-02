@@ -30,9 +30,15 @@ class MoveToActionFloatSam():
     def __init__(self,
                  node: Node):
         self._node : Node = node
-        self._robot_name : str = "floatsam_usv"
+        
+        # Get robot name from node parameter
+        self._node.declare_parameter('robot_name', 'floatsam_usv')
+        self._robot_name : str = self._node.get_parameter('robot_name').value
+        
         self.MAP_FRAME : str = self._robot_name + '/map'
         self._floatsam = FloatSam(node, self._robot_name)
+        
+        self._node.get_logger().info(f"FloatSam move_to server initialized for robot: {self._robot_name}")
 
         self._default_goal_tolerance = 1  # a cazzo 
 
@@ -180,7 +186,17 @@ class MoveToActionFloatSam():
 
 def main(args=None):
     rclpy.init(args=args)
-    node = Node("floatsam_move_to_action_server")
+    
+    # Create a temporary node to read robot_name parameter
+    temp_node = Node("temp_param_reader")
+    temp_node.declare_parameter('robot_name', 'floatsam_usv')
+    robot_name = temp_node.get_parameter('robot_name').value
+    temp_node.destroy_node()
+    
+    # Create the actual node with proper namespace
+    node = Node("floatsam_move_to_action_server", namespace=robot_name)
+    node.declare_parameter('robot_name', robot_name)
+    
     move_to_action = MoveToActionFloatSam(node)
     executor = MultiThreadedExecutor()
     rclpy.spin(node, executor=executor)
