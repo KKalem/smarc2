@@ -72,105 +72,106 @@ sensors:
     msg_type: 'std_msgs/Bool'
 
 # Actuator feedback topics
+# NOTE: Input topics use {robot_name} placeholder for multi-robot support
 actuators:
   elevator_cmd:
-    input_topic: '/lolo/actuators/elevator_cmd'
+    input_topic: '/{robot_name}/actuators/elevator_cmd'
     output_topic: 'actuators/elevator_cmd'
     msg_type: 'std_msgs/Float32'
   
   elevator_fb:
-    input_topic: '/lolo/actuators/elevator_fb'
+    input_topic: '/{robot_name}/actuators/elevator_fb'
     output_topic: 'actuators/elevator_fb'
     msg_type: 'std_msgs/Float32'
   
   elevon_port_cmd:
-    input_topic: '/lolo/actuators/elevon_port_cmd'
+    input_topic: '/{robot_name}/actuators/elevon_port_cmd'
     output_topic: 'actuators/elevon_port_cmd'
     msg_type: 'std_msgs/Float32'
   
   elevon_port_fb:
-    input_topic: '/lolo/actuators/elevon_port_fb'
+    input_topic: '/{robot_name}/actuators/elevon_port_fb'
     output_topic: 'actuators/elevon_port_fb'
     msg_type: 'std_msgs/Float32'
   
   elevon_strb_cmd:
-    input_topic: '/lolo/actuators/elevon_strb_cmd'
+    input_topic: '/{robot_name}/actuators/elevon_strb_cmd'
     output_topic: 'actuators/elevon_strb_cmd'
     msg_type: 'std_msgs/Float32'
   
   rudder_cmd:
-    input_topic: '/lolo/actuators/rudder_cmd'
+    input_topic: '/{robot_name}/actuators/rudder_cmd'
     output_topic: 'actuators/rudder_cmd'
     msg_type: 'std_msgs/Float32'
   
   rudder_port_fb:
-    input_topic: '/lolo/actuators/rudder_port_fb'
+    input_topic: '/{robot_name}/actuators/rudder_port_fb'
     output_topic: 'actuators/rudder_port_fb'
     msg_type: 'std_msgs/Float32'
   
   rudder_stbd_fb:
-    input_topic: '/lolo/actuators/rudder_stbd_fb'
+    input_topic: '/{robot_name}/actuators/rudder_stbd_fb'
     output_topic: 'actuators/rudder_stbd_fb'
     msg_type: 'std_msgs/Float32'
   
   thruster_port_cmd:
-    input_topic: '/lolo/actuators/thruster_port_cmd'
+    input_topic: '/{robot_name}/actuators/thruster_port_cmd'
     output_topic: 'actuators/thruster_port_cmd'
     msg_type: 'std_msgs/Float32'
   
   thruster_port_fb:
-    input_topic: '/lolo/actuators/thruster_port_fb'
+    input_topic: '/{robot_name}/actuators/thruster_port_fb'
     output_topic: 'actuators/thruster_port_fb'
     msg_type: 'std_msgs/Float32'
   
   thruster_strb_cmd:
-    input_topic: '/lolo/actuators/thruster_strb_cmd'
+    input_topic: '/{robot_name}/actuators/thruster_strb_cmd'
     output_topic: 'actuators/thruster_strb_cmd'
     msg_type: 'std_msgs/Float32'
   
   thruster_strb_fb:
-    input_topic: '/lolo/actuators/thruster_strb_fb'
+    input_topic: '/{robot_name}/actuators/thruster_strb_fb'
     output_topic: 'actuators/thruster_strb_fb'
     msg_type: 'std_msgs/Float32'
   
   vertical_thruster_back_port_cmd:
-    input_topic: '/lolo/actuators/vertical_thruster_back_port_cmd'
+    input_topic: '/{robot_name}/actuators/vertical_thruster_back_port_cmd'
     output_topic: 'actuators/vertical_thruster_back_port_cmd'
     msg_type: 'std_msgs/Float32'
   
   vertical_thruster_back_port_fb:
-    input_topic: '/lolo/actuators/vertical_thruster_back_port_fb'
+    input_topic: '/{robot_name}/actuators/vertical_thruster_back_port_fb'
     output_topic: 'actuators/vertical_thruster_back_port_fb'
     msg_type: 'std_msgs/Float32'
   
   vertical_thruster_back_strb_cmd:
-    input_topic: '/lolo/actuators/vertical_thruster_back_strb_cmd'
+    input_topic: '/{robot_name}/actuators/vertical_thruster_back_strb_cmd'
     output_topic: 'actuators/vertical_thruster_back_strb_cmd'
     msg_type: 'std_msgs/Float32'
   
   vertical_thruster_back_strb_fb:
-    input_topic: '/lolo/actuators/vertical_thruster_back_strb_fb'
+    input_topic: '/{robot_name}/actuators/vertical_thruster_back_strb_fb'
     output_topic: 'actuators/vertical_thruster_back_strb_fb'
     msg_type: 'std_msgs/Float32'
   
   vertical_thruster_front_port_cmd:
-    input_topic: '/lolo/actuators/vertical_thruster_front_port_cmd'
+    input_topic: '/{robot_name}/actuators/vertical_thruster_front_port_cmd'
     output_topic: 'actuators/vertical_thruster_front_port_cmd'
     msg_type: 'std_msgs/Float32'
   
   vertical_thruster_front_port_fb:
-    input_topic: '/lolo/actuators/vertical_thruster_front_port_fb'
-    output_topic: 'lolo/actuators/vertical_thruster_front_port_fb'
+    input_topic: '/{robot_name}/actuators/vertical_thruster_front_port_fb'
+    output_topic: 'actuators/vertical_thruster_front_port_fb'
     msg_type: 'std_msgs/Float32'
   
   vertical_thruster_front_strb_cmd:
-    input_topic: '/lolo/actuators/vertical_thruster_front_strb_cmd'
-    output_topic: 'lolo/actuators/vertical_thruster_front_strb_cmd'
+    input_topic: '/{robot_name}/actuators/vertical_thruster_front_strb_cmd'
+    output_topic: 'actuators/vertical_thruster_front_strb_cmd'
     msg_type: 'std_msgs/Float32'
   
   vertical_thruster_front_strb_fb:
-    input_topic: '/lolo/actuators/vertical_thruster_front_strb_fb'
-    output_topic: 'lolo/actuators/vertical_thruster_front_strb_fb'
+    input_topic: '/{robot_name}/actuators/vertical_thruster_front_strb_fb'
+    output_topic: 'actuators/vertical_thruster_front_strb_fb'
     msg_type: 'std_msgs/Float32'
 
 # Payload sensors

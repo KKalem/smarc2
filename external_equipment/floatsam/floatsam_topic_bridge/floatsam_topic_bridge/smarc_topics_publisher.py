@@ -47,6 +47,9 @@ class SmarcTopicsPublisher(Node):
         # Load configuration
         self.config = self._load_config(config_file)
         
+        # Replace {robot_name} placeholder in all topic paths
+        self._substitute_robot_name()
+        
         # Storage for latest messages
         self.latest_odom = None
         self.latest_gps_left = None
@@ -79,6 +82,17 @@ class SmarcTopicsPublisher(Node):
         except Exception as e:
             self.get_logger().error(f'❌ Failed to load config file {config_file}: {e}')
             return {'sensors': {}, 'actuators': {}, 'payload': {}}
+    
+    def _substitute_robot_name(self):
+        """Replace {robot_name} placeholder in all topic paths with actual robot name"""
+        for category in ['sensors', 'actuators', 'payload']:
+            if category in self.config:
+                for topic_name, topic_config in self.config[category].items():
+                    if 'input_topic' in topic_config:
+                        topic_config['input_topic'] = topic_config['input_topic'].replace('{robot_name}', self.robot_name)
+                    if 'output_topic' in topic_config:
+                        topic_config['output_topic'] = topic_config['output_topic'].replace('{robot_name}', self.robot_name)
+        self.get_logger().info(f'🔄 Substituted {{robot_name}} with: {self.robot_name}')
     
     def _get_message_class(self, msg_type_str):
         """Dynamically import and return message class from string like 'std_msgs/Float32'"""

@@ -41,10 +41,13 @@ class FloatSam():
                 self._node.get_logger().info(f"Waiting for transform from {self.ODOM_FRAME} to {self.MAP_FRAME}...")
         
 
+        # Subscribe to odometry with robot namespace
+        odom_topic = f"/{robot_name}/odom_gt"
         self._node.create_subscription(Odometry,
-                                       "/floatsam_usv/odom_gt",
+                                       odom_topic,
                                        self._odom_cb,
                                        10)
+        self._node.get_logger().info(f"Subscribed to odometry: {odom_topic}")
         
     def _odom_cb(self, msg_odom: Odometry):
         floatsam_in_odom : PoseStamped = PoseStamped()

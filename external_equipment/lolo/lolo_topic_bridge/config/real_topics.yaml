@@ -71,25 +71,26 @@ sensors:
     msg_type: 'std_msgs/Bool'
 
 # Actuators (PLACEHOLDER topics)
+# NOTE: Hardware outputs use absolute paths (start with /) to avoid robot namespace
 actuators:
   elevator_cmd:
-    input_topic: '/lolo/hardware/elevator/cmd'  # PLACEHOLDER
-    output_topic: 'actuators/elevator_cmd'
+    input_topic: '/{robot_name}/actuators/elevator_cmd'  # From controller
+    output_topic: '/lolo/hardware/elevator_cmd'  # PLACEHOLDER - To hardware driver (absolute)
     msg_type: 'std_msgs/Float32'
   
   elevator_fb:
-    input_topic: '/lolo/hardware/elevator/feedback'  # PLACEHOLDER
-    output_topic: 'actuators/elevator_fb'
+    input_topic: '/lolo/hardware/elevator_fb'  # PLACEHOLDER - From hardware (absolute)
+    output_topic: 'actuators/elevator_fb'  # Relative - gets robot namespace
     msg_type: 'std_msgs/Float32'
   
   thruster_port_cmd:
-    input_topic: '/lolo/hardware/thruster_port/cmd'  # PLACEHOLDER
-    output_topic: 'actuators/thruster_port_cmd'
+    input_topic: '/{robot_name}/actuators/thruster_port_cmd'  # From controller
+    output_topic: '/lolo/hardware/thruster_port_cmd'  # PLACEHOLDER - To hardware driver (absolute)
     msg_type: 'std_msgs/Float32'
   
   thruster_port_fb:
-    input_topic: '/lolo/hardware/thruster_port/feedback'  # PLACEHOLDER
-    output_topic: 'actuators/thruster_port_fb'
+    input_topic: '/lolo/hardware/thruster_port_fb'  # PLACEHOLDER - From hardware (absolute)
+    output_topic: 'actuators/thruster_port_fb'  # Relative - gets robot namespace
     msg_type: 'std_msgs/Float32'
   
   # Add other actuators as needed...

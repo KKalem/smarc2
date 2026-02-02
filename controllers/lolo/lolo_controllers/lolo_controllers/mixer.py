@@ -251,7 +251,7 @@ class control_mixer(Node):
             if thruster_port is not None: thruster_port += self.rpm_actuation*rpm_reduction
             else: thruster_port = self.rpm_actuation*rpm_reduction
             if thruster_strb is not None: thruster_strb += self.rpm_actuation*rpm_reduction
-            else: thruster_strb = self.rpm_actuation*rpm_reduction
+            else: thruster_strb = self.rpm_actuation*rpmf_reduction
 
         #Publish thruster setpoints
         self.thruster_setpoint_couter += 1

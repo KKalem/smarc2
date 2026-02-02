@@ -61,25 +61,27 @@ sensors:
     msg_type: 'std_msgs/Float32'
 
 # Actuators
+# Bridge translates captain's standard topics to hardware-specific topics
+# NOTE: Hardware output topics use absolute paths (start with /) to avoid robot namespace
 actuators:
-  prop_left_cmd:
-    input_topic: '/floatsam/hardware/prop_left/cmd'  # PLACEHOLDER
-    output_topic: 'actuators/prop_left_cmd'
+  thruster_port_cmd:
+    input_topic: '/{robot_name}/actuators/thruster_port_cmd'  # From captain (FloatsamTopics.THRUSTER_PORT_CMD)
+    output_topic: '/floatsam/hardware/thruster_port_cmd'  # PLACEHOLDER - To hardware driver (absolute)
     msg_type: 'std_msgs/Float32'
     
-  prop_left_fb:
-    input_topic: '/floatsam/hardware/prop_left/feedback'  # PLACEHOLDER
-    output_topic: 'actuators/prop_left_fb'
+  thruster_strb_cmd:
+    input_topic: '/{robot_name}/actuators/thruster_strb_cmd'  # From captain (FloatsamTopics.THRUSTER_STRB_CMD)
+    output_topic: '/floatsam/hardware/thruster_strb_cmd'  # PLACEHOLDER - To hardware driver (absolute)
     msg_type: 'std_msgs/Float32'
     
-  prop_right_cmd:
-    input_topic: '/floatsam/hardware/prop_right/cmd'  # PLACEHOLDER
-    output_topic: 'actuators/prop_right_cmd'
+  thruster_port_fb:
+    input_topic: '/floatsam/hardware/thruster_port_fb'  # PLACEHOLDER - From hardware (absolute)
+    output_topic: 'smarc/actuators/thruster_port_fb'  # To SMARC standard (relative, gets robot namespace)
     msg_type: 'std_msgs/Float32'
     
-  prop_right_fb:
-    input_topic: '/floatsam/hardware/prop_right/feedback'  # PLACEHOLDER
-    output_topic: 'actuators/prop_right_fb'
+  thruster_strb_fb:
+    input_topic: '/floatsam/hardware/thruster_strb_fb'  # PLACEHOLDER - From hardware (absolute)
+    output_topic: 'smarc/actuators/thruster_strb_fb'  # To SMARC standard (relative, gets robot namespace)
     msg_type: 'std_msgs/Float32'
 
 # Payload

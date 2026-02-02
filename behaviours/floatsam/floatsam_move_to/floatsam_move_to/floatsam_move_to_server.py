@@ -13,6 +13,7 @@ from .floatsam_common import FloatSam
 
 #from std_msgs.msg import Float32
 from smarc_msgs.msg import FloatStamped
+from floatsam_msgs.msg import Topics as FloatsamTopics
 from geometry_msgs.msg import  PointStamped, PoseStamped
 from geographic_msgs.msg import GeoPoint
 from geometry_msgs.msg import PointStamped
@@ -33,11 +34,12 @@ class MoveToActionFloatSam():
         self.MAP_FRAME : str = self._robot_name + '/map'
         self._floatsam = FloatSam(node, self._robot_name)
 
-        self._default_goal_tolerance=5  # a cazzo 
+        self._default_goal_tolerance = 1  # a cazzo 
 
-        self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, '/ctrl/yaw_setpoint', 10)
+        # Publishers use FloatsamTopics constants (relative paths get robot namespace)
+        self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.YAW_SETPOINT, 10)
 
-        self._speed_reference_publisher = self._node.create_publisher(FloatStamped, '/ctrl/velocity_setpoint', 10)
+        self._speed_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10)
 
         # create the gentler action server to expose 'move_to'
         self._as = GentlerActionServer(

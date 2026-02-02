@@ -50,6 +50,9 @@ class SmarcTopicsPublisher(Node):
         # Load configuration
         self.config = self._load_config(config_file)
         
+        # Replace {robot_name} placeholder in all topic paths
+        self._substitute_robot_name()
+        
         # Create subscribers and publishers
         self._setup_topic_bridges()
         
@@ -70,6 +73,17 @@ class SmarcTopicsPublisher(Node):
             self.get_logger().error(f'❌ Failed to load config file {config_file}: {e}')
             return {'sensors': {}, 'smarc_format_topics': {}, 'actuators': {}, 'payload': {}}
     
+    def _substitute_robot_name(self):
+        """Replace {robot_name} placeholder in all topic paths with actual robot name"""
+        for category in ['sensors', 'smarc_format_topics', 'actuators', 'payload']:
+            if category in self.config:
+                for topic_name, topic_config in self.config[category].items():
+                    if 'input_topic' in topic_config:
+                        topic_config['input_topic'] = topic_config['input_topic'].replace('{robot_name}', self.robot_name)
+                    if 'output_topic' in topic_config:
+                        topic_config['output_topic'] = topic_config['output_topic'].replace('{robot_name}', self.robot_name)
+        self.get_logger().info(f'🔄 Substituted {{robot_name}} with: {self.robot_name}')
+    
     def _get_message_class(self, msg_type_str):
         """Dynamically import and return message class from string like 'std_msgs/Float32'"""
         try:
@@ -89,6 +103,13 @@ class SmarcTopicsPublisher(Node):
     def _setup_topic_bridges(self):
         """Set up subscribers and publishers for all configured topics"""
         
+        # Helper to add vehicle namespace
+        def namespaced_topic(topic):
+            """Add vehicle namespace if not already present"""
+            if topic.startswith('/') or topic.startswith(self.robot_name):
+                return topic
+            return f'{self.robot_name}/{topic}'
+        
         # Handle SMaRC format topics (simple passthrough)
         smarc_topics = self.config.get('smarc_format_topics', {})
         for topic_name, topic_config in smarc_topics.items():
@@ -96,10 +117,10 @@ class SmarcTopicsPublisher(Node):
             if msg_class is None:
                 continue
             
-            publisher = self.create_publisher(msg_class, topic_config['output_topic'], 10)
+            publisher = self.create_publisher(msg_class, namespaced_topic(topic_config['output_topic']), 10)
             self.create_subscription(msg_class, topic_config['input_topic'],
                                     self._create_passthrough_callback(publisher), 10)
-            self.get_logger().info(f'  {topic_name.upper()}: {topic_config["input_topic"]} → {topic_config["output_topic"]}')
+            self.get_logger().info(f'  {topic_name.upper()}: {topic_config["input_topic"]} → {namespaced_topic(topic_config["output_topic"])}')
         
         # Handle raw sensor topics
         sensors = self.config.get('sensors', {})
@@ -107,53 +128,53 @@ class SmarcTopicsPublisher(Node):
         # GPS
         if 'gps' in sensors:
             self.create_subscription(NavSatFix, sensors['gps']['input_topic'], self._gps_callback, 10)
-            self.gps_pub = self.create_publisher(NavSatFix, sensors['gps']['output_topic'], 10)
-            self.get_logger().info(f'  GPS (raw): {sensors["gps"]["input_topic"]} → {sensors["gps"]["output_topic"]}')
+            self.gps_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['gps']['output_topic']), 10)
+            self.get_logger().info(f'  GPS (raw): {sensors["gps"]["input_topic"]} → {namespaced_topic(sensors["gps"]["output_topic"])}')
         
         # IMU
         if 'imu' in sensors:
             self.create_subscription(Imu, sensors['imu']['input_topic'], self._imu_callback, 10)
-            self.imu_pub = self.create_publisher(Imu, sensors['imu']['output_topic'], 10)
-            self.get_logger().info(f'  IMU (raw): {sensors["imu"]["input_topic"]} → {sensors["imu"]["output_topic"]}')
+            self.imu_pub = self.create_publisher(Imu, namespaced_topic(sensors['imu']['output_topic']), 10)
+            self.get_logger().info(f'  IMU (raw): {sensors["imu"]["input_topic"]} → {namespaced_topic(sensors["imu"]["output_topic"])}')
         
         # Depth Pressure
         if 'depth_pressure' in sensors:
             self.create_subscription(FluidPressure, sensors['depth_pressure']['input_topic'],
                                     self._depth_pressure_callback, 10)
-            self.depth_pressure_pub = self.create_publisher(FluidPressure, sensors['depth_pressure']['output_topic'], 10)
-            self.get_logger().info(f'  Depth Pressure (raw): {sensors["depth_pressure"]["input_topic"]} → {sensors["depth_pressure"]["output_topic"]}')
+            self.depth_pressure_pub = self.create_publisher(FluidPressure, namespaced_topic(sensors['depth_pressure']['output_topic']), 10)
+            self.get_logger().info(f'  Depth Pressure (raw): {sensors["depth_pressure"]["input_topic"]} → {namespaced_topic(sensors["depth_pressure"]["output_topic"])}')
         
         # DVL
         if 'dvl' in sensors:
             self.create_subscription(Range, sensors['dvl']['input_topic'], self._dvl_callback, 10)
-            self.dvl_pub = self.create_publisher(Range, sensors['dvl']['output_topic'], 10)
-            self.get_logger().info(f'  DVL (raw): {sensors["dvl"]["input_topic"]} → {sensors["dvl"]["output_topic"]}')
+            self.dvl_pub = self.create_publisher(Range, namespaced_topic(sensors['dvl']['output_topic']), 10)
+            self.get_logger().info(f'  DVL (raw): {sensors["dvl"]["input_topic"]} → {namespaced_topic(sensors["dvl"]["output_topic"])}')
         
         # Leak sensor
         if 'leak' in sensors:
             self.create_subscription(Bool, sensors['leak']['input_topic'], self._leak_callback, 10)
-            self.leak_pub = self.create_publisher(Bool, sensors['leak']['output_topic'], 10)
-            self.get_logger().info(f'  Leak: {sensors["leak"]["input_topic"]} → {sensors["leak"]["output_topic"]}')
+            self.leak_pub = self.create_publisher(Bool, namespaced_topic(sensors['leak']['output_topic']), 10)
+            self.get_logger().info(f'  Leak: {sensors["leak"]["input_topic"]} → {namespaced_topic(sensors["leak"]["output_topic"])}')
         
         # Actuators (passthrough with dynamic typing)
         actuators = self.config.get('actuators', {})
         for actuator_name, config in actuators.items():
             msg_class = self._get_message_class(config['msg_type'])
             if msg_class:
-                pub = self.create_publisher(msg_class, config['output_topic'], 10)
+                pub = self.create_publisher(msg_class, namespaced_topic(config['output_topic']), 10)
                 self.create_subscription(msg_class, config['input_topic'],
                                         self._create_passthrough_callback(pub), 10)
-                self.get_logger().info(f'  Actuator {actuator_name}: {config["input_topic"]} → {config["output_topic"]}')
+                self.get_logger().info(f'  Actuator {actuator_name}: {config["input_topic"]} → {namespaced_topic(config["output_topic"])}')
         
         # Payload sensors (passthrough with dynamic typing)
         payload = self.config.get('payload', {})
         for payload_name, config in payload.items():
             msg_class = self._get_message_class(config['msg_type'])
             if msg_class:
-                pub = self.create_publisher(msg_class, config['output_topic'], 10)
+                pub = self.create_publisher(msg_class, namespaced_topic(config['output_topic']), 10)
                 self.create_subscription(msg_class, config['input_topic'],
                                         self._create_passthrough_callback(pub), 10)
-                self.get_logger().info(f'  Payload {payload_name}: {config["input_topic"]} → {config["output_topic"]}')
+                self.get_logger().info(f'  Payload {payload_name}: {config["input_topic"]} → {namespaced_topic(config["output_topic"])}')
     
     def _gps_callback(self, msg: NavSatFix):
         """Pass through raw GPS data"""
