@@ -73,8 +73,6 @@ class Captain(Node):
         # Mixer parameters
         # ============================================
         
-        # yaw_gain determines how much differential thrust per unit yaw actuation
-        self.yaw_gain = self.get_parameter("yaw_gain").value
         self.rpm_deadband = self.get_parameter("rpm_deadband").value
         self.thruster_limit = self.get_parameter("thruster_limit").value
         
@@ -83,8 +81,6 @@ class Captain(Node):
         self.last_thruster_port_cmd = 0.0
         self.last_thruster_strb_cmd = 0.0
         
-        self.logger.info(f"Mixer config: yaw_gain={self.yaw_gain}, max_delta_rpm={self.max_delta_rpm} RPM/cycle")
-
         # ============================================
         # State variables for sensor feedback
         # ============================================
@@ -153,7 +149,7 @@ class Captain(Node):
         self.declare_parameter("yawrate_p_gain", 20.0)
         self.declare_parameter("yawrate_i_gain", 0.0)
         self.declare_parameter("yawrate_d_gain", 0.0)
-        self.declare_parameter("yawrate_output_limit", 0.8)  # actuation units
+        self.declare_parameter("yawrate_output_limit", 800.0)  # RPM
         
         # Velocity PID parameters
         self.declare_parameter("velocity_p_gain", 500.0)
@@ -162,7 +158,6 @@ class Captain(Node):
         self.declare_parameter("velocity_output_limit", 800.0)  # RPM
         
         # Mixer parameters
-        self.declare_parameter("yaw_gain", 800.0)  # RPM per actuation unit
         self.declare_parameter("rpm_deadband", 50.0)  # RPM
         self.declare_parameter("thruster_limit", 1000.0)  # RPM
         self.declare_parameter("max_delta_rpm", 200.0)  # RPM per control cycle
@@ -302,8 +297,7 @@ class Captain(Node):
         # Mixing: Differential thrust
         # ============================================
         
-        # Convert yaw actuation to differential thrust correction
-        yaw_correction = self.yaw_gain * yaw_actuation
+        yaw_correction = yaw_actuation
         
         # Base RPM for both thrusters, then add/subtract for steering
         thruster_port_raw = velocity_rpm_setpoint - yaw_correction

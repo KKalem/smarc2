@@ -31,8 +31,7 @@ class MoveToActionFloatSam():
                  node: Node):
         self._node : Node = node
         
-        # Get robot name from node parameter
-        self._node.declare_parameter('robot_name', 'floatsam_usv')
+        # Get robot name from node parameter 
         self._robot_name : str = self._node.get_parameter('robot_name').value
         
         self.MAP_FRAME : str = self._robot_name + '/map'

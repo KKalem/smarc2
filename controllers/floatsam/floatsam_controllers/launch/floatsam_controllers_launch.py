@@ -49,7 +49,7 @@ def generate_launch_description():
             "yawrate_p_gain": 20.0,
             "yawrate_i_gain": 0.0,
             "yawrate_d_gain": 0.0,
-            "yawrate_output_limit": 0.8,  # actuation units
+            "yawrate_output_limit": 800.0,  # RPM
             
             # ===== VELOCITY PID PARAMETERS =====
             # Converts velocity error to RPM setpoint
@@ -59,7 +59,6 @@ def generate_launch_description():
             "velocity_output_limit": 1000.0,  # RPM
             
             # ===== MIXER PARAMETERS =====
-            "yaw_gain": 800.0,  # RPM per actuation unit (differential thrust strength)
             "rpm_deadband": 50.0,  # Minimum RPM threshold
             "thruster_limit": 1000.0,  # Maximum RPM
             
