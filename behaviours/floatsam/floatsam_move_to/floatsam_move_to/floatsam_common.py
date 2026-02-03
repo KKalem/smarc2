@@ -12,11 +12,6 @@ from tf2_geometry_msgs import do_transform_pose_stamped
 from tf2_ros import Buffer, TransformListener
 
 from smarc_utilities.georef_utils import convert_latlon_to_utm
-# from dji_msgs.msg import Topics as DJITopics
-# from dji_msgs.msg import Links as DJILinks
-# from smarc_msgs.msg import Topics as SmarcTopics
-
-
 
 class FloatSam():
     def __init__(self,
@@ -42,7 +37,7 @@ class FloatSam():
         
 
         # Subscribe to odometry with robot namespace
-        odom_topic = f"/{robot_name}/odom_gt"
+        odom_topic = f"/{robot_name}/smarc/odom"
         self._node.create_subscription(Odometry,
                                        odom_topic,
                                        self._odom_cb,

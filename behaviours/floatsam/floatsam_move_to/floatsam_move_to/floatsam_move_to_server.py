@@ -18,6 +18,7 @@ from geometry_msgs.msg import  PointStamped, PoseStamped
 from geographic_msgs.msg import GeoPoint
 from geometry_msgs.msg import PointStamped
 from nav_msgs.msg import Odometry
+from tf_transformations import euler_from_quaternion
 
 
 from tf2_geometry_msgs import do_transform_pose_stamped
@@ -148,7 +149,8 @@ class MoveToActionFloatSam():
         
         self_position = np.array([self._floatsam.floatsam_in_map.pose.position.x,
                                   self._floatsam.floatsam_in_map.pose.position.y])
-        
+
+    
         self._node.get_logger().info(f"Current position: [{self_position[0]:.2f}, {self_position[1]:.2f}]")
         self._node.get_logger().info(f"Goal position:    [{goal_position[0]:.2f}, {goal_position[1]:.2f}]")
         
