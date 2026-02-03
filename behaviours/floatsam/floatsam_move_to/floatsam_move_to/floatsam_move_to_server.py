@@ -39,7 +39,8 @@ class MoveToActionFloatSam():
         
         self._node.get_logger().info(f"FloatSam move_to server initialized for robot: {self._robot_name}")
 
-        self._default_goal_tolerance = 1  # a cazzo 
+        self._default_goal_tolerance = 1  
+        self._default_speed_threshold = 10  # start slowing down when within 10m of goal 
 
         # Publishers use FloatsamTopics constants (relative paths get robot namespace)
         self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.YAW_SETPOINT, 10)
@@ -159,10 +160,19 @@ class MoveToActionFloatSam():
             self._node.get_logger().info(f"Reached goal within tolerance {self._goal_tolerance}m")
             return True
         
-
+        if self._distance_remaining <= self._default_speed_threshold:
+            # slow down when close to goal
+            self._desired_speed = (self._distance_remaining / self._default_speed_threshold) * self._goal_speed
+            self._node.get_logger().info(f"Slowing down, new speed: {self._desired_speed:.2f}")
+        else:
+            self._desired_speed = self._goal_speed
+    
+        self._node.get_logger().info(f"The desired speed is {self._desired_speed:.2f} m/s")
         #calcuate error heading and speed
         error_heading = float(np.arctan2(goal_error[1], goal_error[0]))
-        speed = float(self._goal_speed)
+        self._node.get_logger().info(f"The error heading is {error_heading:.2f} rad")
+        self._node.get_logger().info(f"The distance remaining is {self._distance_remaining:.2f} m")
+        speed = float(self._desired_speed)
         
         yaw_msg = FloatStamped()
         speed_msg = FloatStamped()

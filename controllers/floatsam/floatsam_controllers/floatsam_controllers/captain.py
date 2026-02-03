@@ -170,19 +170,16 @@ class Captain(Node):
     def yaw_meas_cb(self, msg):
         self.last_yaw_meas_time = self.time_now()
         self.yaw_measurement = msg.data
-        self.logger.info("pisello 3 ")
 
 
     def yawrate_meas_cb(self, msg):
         self.last_yawrate_meas_time = self.time_now()
         self.yaw_rate_measurement = msg.data
-        self.logger.info("pisello 4 ")
 
 
     def velocity_meas_cb(self, msg):
         self.last_velocity_meas_time = self.time_now()
         self.velocity_measurement = msg.data
-        self.logger.info("pisello 5 ")
 
 
     # ============================================
@@ -192,12 +189,10 @@ class Captain(Node):
     def yaw_setpoint_cb(self, msg):
         self.last_yaw_setpoint_time = self.time_now()
         self.yaw_setpoint = msg.data
-        self.logger.info("pisello 1 ")
 
     def velocity_setpoint_cb(self, msg):
         self.last_velocity_setpoint_time = self.time_now()
         self.velocity_setpoint_input = msg.data
-        self.logger.info("pisello 2 ")
 
 
 
@@ -266,14 +261,12 @@ class Captain(Node):
             (now - self.last_velocity_meas_time) < timeout
         )
         
-        self.logger.info(f"meas {measurements_ok}")
 
         setpoints_ok = (
             (now - self.last_yaw_setpoint_time) < timeout and
             (now - self.last_velocity_setpoint_time) < timeout
         )
         
-        self.logger.info(f"setpoint {setpoints_ok}")
         
         if not measurements_ok or not setpoints_ok:
             # Safety: stop thrusters if we lose any input
