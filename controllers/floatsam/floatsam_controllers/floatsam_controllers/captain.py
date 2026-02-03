@@ -9,6 +9,7 @@ from std_msgs.msg import Float32
 from rclpy.executors import MultiThreadedExecutor
 
 from smarc_msgs.msg import Topics as SmarcTopics
+from smarc_msgs.msg import FloatStamped
 from smarc_control_msgs.msg import Topics as ControlTopics
 from floatsam_msgs.msg import Topics as FloatsamTopics
 
@@ -114,9 +115,9 @@ class Captain(Node):
         # Subscribers: Setpoints from behavior layer
         # ============================================
         
-        self.create_subscription(Float32, FloatsamTopics.YAW_SETPOINT,
+        self.create_subscription(FloatStamped, FloatsamTopics.YAW_SETPOINT,
                                  self.yaw_setpoint_cb, 1)
-        self.create_subscription(Float32, FloatsamTopics.VELOCITY_SETPOINT,
+        self.create_subscription(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT,
                                  self.velocity_setpoint_cb, 1)
 
         # ============================================
@@ -132,7 +133,7 @@ class Captain(Node):
                                                        FloatsamTopics.THRUSTER_STRB_CMD, 1)
 
     def time_now(self):
-        return self.get_clock().now()
+        return self.get_clock().now().nanoseconds * 1e-9
 
     def declare_node_parameters(self):
         """Declare all configurable parameters for PIDs and mixer"""
@@ -169,14 +170,20 @@ class Captain(Node):
     def yaw_meas_cb(self, msg):
         self.last_yaw_meas_time = self.time_now()
         self.yaw_measurement = msg.data
+        self.logger.info("pisello 3 ")
+
 
     def yawrate_meas_cb(self, msg):
         self.last_yawrate_meas_time = self.time_now()
         self.yaw_rate_measurement = msg.data
+        self.logger.info("pisello 4 ")
+
 
     def velocity_meas_cb(self, msg):
         self.last_velocity_meas_time = self.time_now()
         self.velocity_measurement = msg.data
+        self.logger.info("pisello 5 ")
+
 
     # ============================================
     # Callbacks: Setpoints from behavior layer
@@ -185,10 +192,14 @@ class Captain(Node):
     def yaw_setpoint_cb(self, msg):
         self.last_yaw_setpoint_time = self.time_now()
         self.yaw_setpoint = msg.data
+        self.logger.info("pisello 1 ")
 
     def velocity_setpoint_cb(self, msg):
         self.last_velocity_setpoint_time = self.time_now()
         self.velocity_setpoint_input = msg.data
+        self.logger.info("pisello 2 ")
+
+
 
     # ============================================
     # Rate limiter (delta RPM health check)
@@ -255,10 +266,14 @@ class Captain(Node):
             (now - self.last_velocity_meas_time) < timeout
         )
         
+        self.logger.info(f"meas {measurements_ok}")
+
         setpoints_ok = (
             (now - self.last_yaw_setpoint_time) < timeout and
             (now - self.last_velocity_setpoint_time) < timeout
         )
+        
+        self.logger.info(f"setpoint {setpoints_ok}")
         
         if not measurements_ok or not setpoints_ok:
             # Safety: stop thrusters if we lose any input
