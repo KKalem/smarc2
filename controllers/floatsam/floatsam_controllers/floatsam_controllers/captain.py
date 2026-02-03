@@ -265,24 +265,19 @@ class Captain(Node):
         measurement_vec = np.array([np.cos(self.yaw_measurement), np.sin(self.yaw_measurement)])
         yaw_error = -geom.vec2_directed_angle(setpoint_vec, measurement_vec)
         
-        self.logger.info(f"Yaw setpoint: {self.yaw_setpoint},  yaw maesa: {self.yaw_measurement} funzione {yaw_error}" )
+        self.logger.info(f"Error Heading {yaw_error}" )
 
         yaw_rate_setpoint = self.yaw_pid.update_error(yaw_error, now)
-        self.logger.info(f"Yaw rate: {yaw_rate_setpoint}" )
-
         
         # Step 2: Yaw Rate PID - convert rate error to actuation signal
         yaw_rate_error = yaw_rate_setpoint - self.yaw_rate_measurement
         yaw_actuation = self.yawrate_pid.update_error(yaw_rate_error, now)
-        self.logger.info(f"Yaw rate error: {yaw_rate_error}")
-        self.logger.info(f"Yaw act: {yaw_actuation}")
 
         
         # Step 3: Velocity PID - convert velocity error to RPM setpoint
         velocity_error = self.velocity_setpoint_input - self.velocity_measurement
         velocity_rpm_setpoint = self.velocity_pid.update_error(velocity_error, now)
-        self.logger.info(f"Velocity RPM setpoint: {velocity_rpm_setpoint}")
-        self.logger.info(f"Velocity RPM error: {velocity_error}")
+
 
         # Mixing: Differential thrust
         

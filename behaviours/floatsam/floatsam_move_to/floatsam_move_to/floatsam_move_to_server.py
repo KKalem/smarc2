@@ -101,12 +101,12 @@ class MoveToActionFloatSam():
         try:
             # first transform the latlon goal into UTM
             gp : GeoPoint = GeoPoint()
-            gp.latitude = goal_request['latitude']
-            gp.longitude = goal_request['longitude']
+            gp.latitude = goal_request['waypoint']['latitude']
+            gp.longitude = goal_request['waypoint']['longitude']
             
             self._goal_in_map = self._floatsam.convert_geopoint_to_map_pose_stamped(gp)
 
-            self._goal_tolerance = float(goal_request['tolerance']) if 'tolerance' in goal_request else self._default_goal_tolerance
+            self._goal_tolerance = float(goal_request['waypoint']['tolerance']) if 'tolerance' in goal_request else self._default_goal_tolerance
            
             self._goal_speed = goal_request['speed']
 
@@ -172,7 +172,6 @@ class MoveToActionFloatSam():
         self._node.get_logger().info(f"The desired speed is {self._desired_speed:.2f} m/s")
         #calcuate error heading and speed
         error_heading = float(np.arctan2(goal_error[1], goal_error[0]))
-        self._node.get_logger().info(f"The error heading is {error_heading:.2f} rad")
         self._node.get_logger().info(f"The distance remaining is {self._distance_remaining:.2f} m")
         speed = float(self._desired_speed)
         
