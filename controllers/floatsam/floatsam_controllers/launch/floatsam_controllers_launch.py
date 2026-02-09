@@ -39,16 +39,16 @@ def generate_launch_description():
             
             # ===== YAW PID PARAMETERS =====
             # Converts heading angle error to yaw_rate setpoint
-            "yaw_p_gain": 0.15,
+            "yaw_p_gain": 0.3,
             "yaw_i_gain": 0.0,
-            "yaw_d_gain": 0.0,
-            "yaw_output_limit": 0.1,  # rad/s max yaw rate
+            "yaw_d_gain": 0.1,
+            "yaw_output_limit": 1.0,  # rad/s max yaw rate
             
             # ===== YAW RATE PID PARAMETERS =====
             # Converts yaw_rate error to actuation signal
-            "yawrate_p_gain": 20.0,
+            "yawrate_p_gain": 300.0,
             "yawrate_i_gain": 0.0,
-            "yawrate_d_gain": 0.0,
+            "yawrate_d_gain": 30.0,
             "yawrate_output_limit": 800.0,  # RPM
             
             # ===== VELOCITY PID PARAMETERS =====
