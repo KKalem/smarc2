@@ -108,7 +108,13 @@ class MoveToActionFloatSam():
 
             self._goal_tolerance = float(goal_request['waypoint']['tolerance']) if 'tolerance' in goal_request else self._default_goal_tolerance
            
-            self._goal_speed = goal_request['speed']
+            try:
+                self._goal_speed = float(goal_request['speed'])
+            except:
+                self._node.get_logger().info(f" no valid speed")
+
+
+            #self._goal_speed = goal_request['speed']
 
             pos = self._goal_in_map.pose.position
             
@@ -171,7 +177,8 @@ class MoveToActionFloatSam():
     
         self._node.get_logger().info(f"The desired speed is {self._desired_speed:.2f} m/s")
         #calcuate error heading and speed
-        error_heading = float(np.arctan2(goal_error[1], goal_error[0]))
+        error_heading = float(np.degrees(np.arctan2(goal_error[1], goal_error[0])))
+        error_heading = float(90.0 - error_heading)  # convert to floatsam heading frame ---->>>>>>>>>>>>>
         self._node.get_logger().info(f"The distance remaining is {self._distance_remaining:.2f} m")
         speed = float(self._desired_speed)
         
