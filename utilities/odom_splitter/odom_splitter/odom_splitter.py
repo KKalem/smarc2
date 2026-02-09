@@ -25,12 +25,22 @@ class OdomSplitter(Node):
         super().__init__("odom_splitter", namespace=namespace)
         self._log("Starting the odom splitter node.")
 
+        # Store latest heading from SMARC heading topic
+        self.latest_heading = None
+
         # Input odometry.
         self.input_odom_topic = f"{SmarcTopics.ODOM_TOPIC}"
         self.odom_sub = self.create_subscription(msg_type=Odometry,
                                                  topic=self.input_odom_topic,
                                                  callback=self.odom_callback,
                                                  qos_profile=QoSProfile(depth=1))
+
+        # Subscribe to SMARC heading topic (in radians)
+        self.heading_topic = f"{SmarcTopics.HEADING_TOPIC}"
+        self.heading_sub = self.create_subscription(msg_type=Float32,
+                                                    topic=self.heading_topic,
+                                                    callback=self.heading_callback,
+                                                    qos_profile=QoSProfile(depth=1))
 
         # Publishers.
         # === Yaw ===
@@ -68,6 +78,10 @@ class OdomSplitter(Node):
     def _log(self, message):
         self.get_logger().info(message)
 
+    def heading_callback(self, msg):
+        """Store the latest heading from SMARC heading topic (in radians)"""
+        self.latest_heading = msg.data
+
     def odom_callback(self, msg):
 
         orientation_q = msg.pose.pose.orientation
@@ -85,10 +99,16 @@ class OdomSplitter(Node):
         pitch_msg = Float32()
         pitch_msg.data = orientation_rpy[1]
         self.ctrl_pitch_pub.publish(pitch_msg)
-        # Yaw
+        
+        # Yaw - use heading from SMARC heading topic instead of odom
         yaw_msg = Float32()
-        yaw_msg.data = orientation_rpy[2]
-        self.ctrl_yaw_pub.publish(yaw_msg)
+        if self.latest_heading is not None:
+            yaw_msg.data = self.latest_heading
+            self.ctrl_yaw_pub.publish(yaw_msg)
+        else:
+            # Fallback to odom if heading topic not yet received
+            yaw_msg.data = orientation_rpy[2]
+            self.ctrl_yaw_pub.publish(yaw_msg)
 
         # === Rates ===
         # Roll
