@@ -155,7 +155,7 @@ class Captain(Node):
     
     def yaw_meas_cb(self, msg):
         self.last_yaw_meas_time = self.time_now()
-        self.yaw_measurement = msg.data
+        self.yaw_measurement = msg.data # convert from odom_splitter frame to floatsam heading frame
 
 
     def yawrate_meas_cb(self, msg):
@@ -265,7 +265,7 @@ class Captain(Node):
         measurement_vec = np.array([np.cos(self.yaw_measurement), np.sin(self.yaw_measurement)])
         yaw_error = -geom.vec2_directed_angle(setpoint_vec, measurement_vec)
         
-        self.logger.info(f"Error Heading {yaw_error}" )
+        self.logger.info(f"LOOOOOOOOK Error Heading: {yaw_error}, yaw setpoint: {self.yaw_setpoint}, yaw measured: {self.yaw_measurement}" )
 
         yaw_rate_setpoint = self.yaw_pid.update_error(yaw_error, now)
         

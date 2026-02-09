@@ -39,10 +39,10 @@ class SmarcTopicsPublisher(Node):
         # Switch case: Load appropriate configuration
         if self.use_sim:
             config_file = 'sim_topics.yaml'
-            self.get_logger().info('🎮 SIMULATION MODE: Using simulator topics')
+            self.get_logger().info('SIMULATION MODE: Using simulator topics')
         else:
             config_file = 'real_topics.yaml'
-            self.get_logger().info('🤖 REAL HARDWARE MODE: Using real robot topics')
+            self.get_logger().info('REAL HARDWARE MODE: Using real robot topics')
         
         # Load configuration
         self.config = self._load_config(config_file)
@@ -66,7 +66,7 @@ class SmarcTopicsPublisher(Node):
         # Create subscribers and publishers
         self._setup_topic_bridges()
         
-        self.get_logger().info(f'✅ Floatsam SMaRC Topics Publisher started for: {self.robot_name}')
+        self.get_logger().info(f'Floatsam SMaRC Topics Publisher started for: {self.robot_name}')
     
     def _load_config(self, config_file):
         """Load YAML configuration file"""
@@ -77,10 +77,10 @@ class SmarcTopicsPublisher(Node):
             with open(config_path, 'r') as f:
                 config = yaml.safe_load(f)
             
-            self.get_logger().info(f'📄 Loaded configuration from: {config_file}')
+            self.get_logger().info(f' Loaded configuration from: {config_file}')
             return config
         except Exception as e:
-            self.get_logger().error(f'❌ Failed to load config file {config_file}: {e}')
+            self.get_logger().error(f' Failed to load config file {config_file}: {e}')
             return {'sensors': {}, 'actuators': {}, 'payload': {}}
     
     def _substitute_robot_name(self):
@@ -92,7 +92,7 @@ class SmarcTopicsPublisher(Node):
                         topic_config['input_topic'] = topic_config['input_topic'].replace('{robot_name}', self.robot_name)
                     if 'output_topic' in topic_config:
                         topic_config['output_topic'] = topic_config['output_topic'].replace('{robot_name}', self.robot_name)
-        self.get_logger().info(f'🔄 Substituted {{robot_name}} with: {self.robot_name}')
+        self.get_logger().info(f' Substituted {{robot_name}} with: {self.robot_name}')
     
     def _get_message_class(self, msg_type_str):
         """Dynamically import and return message class from string like 'std_msgs/Float32'"""
@@ -277,7 +277,7 @@ class SmarcTopicsPublisher(Node):
         """Pass through leak sensor data"""
         self.leak_pub.publish(msg)
         if msg.data:
-            self.get_logger().warn('⚠️  LEAK DETECTED!')
+            self.get_logger().warn('  LEAK DETECTED!')
     
     def _odom_callback(self, msg: Odometry):
         """Handle odometry and compute derived values (heading, course, speed)"""
@@ -302,7 +302,7 @@ class SmarcTopicsPublisher(Node):
             heading_deg += 360.0
         
         heading_msg = Float32()
-        heading_msg.data = heading_deg
+        heading_msg.data = 90 - heading_deg
         self.heading_pub.publish(heading_msg)
         
         # Compute and publish course (direction of travel in degrees)

@@ -5,7 +5,7 @@ USE_SIM_TIME=true
 
 # WASP / MQTT settings
 AGENT_TYPE=subsurface
-PULSE_RATE=0.5
+PULSE_RATE=20.0
 CONTEXT=tuper
 BT_LOG_MODE=compact
 DOMAIN=surface

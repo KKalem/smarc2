@@ -140,3 +140,4 @@ fi
 # Set default window
 tmux select-window -t $SESSION:1
 tmux -2 attach-session -t $SESSION
+

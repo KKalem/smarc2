@@ -32,13 +32,6 @@ class OdomSplitter(Node):
                                                  callback=self.odom_callback,
                                                  qos_profile=QoSProfile(depth=1))
 
-        # Subscribe to SMARC heading topic (in radians) and republish as control yaw
-        self.heading_topic = f"{SmarcTopics.HEADING_TOPIC}"
-        self.heading_sub = self.create_subscription(msg_type=Float32,
-                                                    topic=self.heading_topic,
-                                                    callback=self.heading_callback,
-                                                    qos_profile=QoSProfile(depth=1))
-
         # Publishers.
         # === Yaw ===
         self.ctrl_yaw_pub = self.create_publisher(msg_type=Float32,
@@ -75,9 +68,6 @@ class OdomSplitter(Node):
     def _log(self, message):
         self.get_logger().info(message)
 
-    def heading_callback(self, msg):
-        """Republish SMARC heading directly as control yaw topic"""
-        self.ctrl_yaw_pub.publish(msg)
 
     def odom_callback(self, msg):
 
@@ -97,10 +87,10 @@ class OdomSplitter(Node):
         pitch_msg.data = orientation_rpy[1]
         self.ctrl_pitch_pub.publish(pitch_msg)
         
-        # Yaw is published directly from heading_callback (not from odom)
-        # yaw_msg = Float32()
-        # yaw_msg.data = orientation_rpy[2]
-        # self.ctrl_yaw_pub.publish(yaw_msg)
+        # Yaw 
+        yaw_msg = Float32()
+        yaw_msg.data = orientation_rpy[2]
+        self.ctrl_yaw_pub.publish(yaw_msg)
 
         # === Rates ===
         # Roll

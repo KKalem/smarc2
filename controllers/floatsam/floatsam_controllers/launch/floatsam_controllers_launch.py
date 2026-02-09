@@ -3,7 +3,9 @@ from launch_ros.actions import Node
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
+import math
 
+AO=180.0 / math.pi 
 
 def generate_launch_description():
     robot_ns = LaunchConfiguration('robot_name')

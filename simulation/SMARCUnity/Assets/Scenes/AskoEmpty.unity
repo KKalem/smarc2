@@ -142,6 +142,26 @@ PrefabInstance:
       propertyPath: m_SizeDelta.x
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 123414369969908222, guid: 28d89498426c2a64ca6aa9730b91a682,
+        type: 3}
+      propertyPath: DefaultPort
+      value: 1884
+      objectReference: {fileID: 0}
+    - target: {fileID: 123414369969908222, guid: 28d89498426c2a64ca6aa9730b91a682,
+        type: 3}
+      propertyPath: DefaultContext
+      value: tuper
+      objectReference: {fileID: 0}
+    - target: {fileID: 123414369969908222, guid: 28d89498426c2a64ca6aa9730b91a682,
+        type: 3}
+      propertyPath: DefaultServerAddress
+      value: 20.240.40.232
+      objectReference: {fileID: 0}
+    - target: {fileID: 123414369969908222, guid: 28d89498426c2a64ca6aa9730b91a682,
+        type: 3}
+      propertyPath: OverrideSettingsFile
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 228046595396432629, guid: 28d89498426c2a64ca6aa9730b91a682,
         type: 3}
       propertyPath: m_AnchorMax.x
