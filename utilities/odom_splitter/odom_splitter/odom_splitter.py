@@ -25,9 +25,6 @@ class OdomSplitter(Node):
         super().__init__("odom_splitter", namespace=namespace)
         self._log("Starting the odom splitter node.")
 
-        # Store latest heading from SMARC heading topic
-        self.latest_heading = None
-
         # Input odometry.
         self.input_odom_topic = f"{SmarcTopics.ODOM_TOPIC}"
         self.odom_sub = self.create_subscription(msg_type=Odometry,
@@ -35,7 +32,7 @@ class OdomSplitter(Node):
                                                  callback=self.odom_callback,
                                                  qos_profile=QoSProfile(depth=1))
 
-        # Subscribe to SMARC heading topic (in radians)
+        # Subscribe to SMARC heading topic (in radians) and republish as control yaw
         self.heading_topic = f"{SmarcTopics.HEADING_TOPIC}"
         self.heading_sub = self.create_subscription(msg_type=Float32,
                                                     topic=self.heading_topic,
@@ -79,8 +76,8 @@ class OdomSplitter(Node):
         self.get_logger().info(message)
 
     def heading_callback(self, msg):
-        """Store the latest heading from SMARC heading topic (in radians)"""
-        self.latest_heading = msg.data
+        """Republish SMARC heading directly as control yaw topic"""
+        self.ctrl_yaw_pub.publish(msg)
 
     def odom_callback(self, msg):
 
@@ -100,15 +97,10 @@ class OdomSplitter(Node):
         pitch_msg.data = orientation_rpy[1]
         self.ctrl_pitch_pub.publish(pitch_msg)
         
-        # Yaw - use heading from SMARC heading topic instead of odom
-        yaw_msg = Float32()
-        if self.latest_heading is not None:
-            yaw_msg.data = self.latest_heading
-            self.ctrl_yaw_pub.publish(yaw_msg)
-        else:
-            # Fallback to odom if heading topic not yet received
-            yaw_msg.data = orientation_rpy[2]
-            self.ctrl_yaw_pub.publish(yaw_msg)
+        # Yaw is published directly from heading_callback (not from odom)
+        # yaw_msg = Float32()
+        # yaw_msg.data = orientation_rpy[2]
+        # self.ctrl_yaw_pub.publish(yaw_msg)
 
         # === Rates ===
         # Roll
@@ -118,8 +110,9 @@ class OdomSplitter(Node):
         pitch_msg.data = msg.twist.twist.angular.y
         self.ctrl_pitch_rate_pub.publish(pitch_msg)
         # yaw
-        yaw_msg.data = msg.twist.twist.angular.z
-        self.ctrl_yaw_rate_pub.publish(yaw_msg)
+        yaw_rate_msg = Float32()
+        yaw_rate_msg.data = msg.twist.twist.angular.z
+        self.ctrl_yaw_rate_pub.publish(yaw_rate_msg)
         # surge
         surge_msg = Float32()
         surge_msg.data = msg.twist.twist.linear.x
