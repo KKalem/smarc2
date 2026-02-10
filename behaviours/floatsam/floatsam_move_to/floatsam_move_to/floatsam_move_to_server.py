@@ -103,11 +103,13 @@ class MoveToActionFloatSam():
             gp : GeoPoint = GeoPoint()
             gp.latitude = goal_request['waypoint']['latitude']
             gp.longitude = goal_request['waypoint']['longitude']
-            
+
             self._goal_in_map = self._floatsam.convert_geopoint_to_map_pose_stamped(gp)
 
-            self._goal_tolerance = float(goal_request['waypoint']['tolerance']) if 'tolerance' in goal_request else self._default_goal_tolerance
-           
+            self._goal_tolerance = float(goal_request['waypoint']['tolerance'])
+            self._node.get_logger().info(f" \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Goal tolerance {self._goal_tolerance}\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\ ")
+
+
             try:
                 self._goal_speed = goal_request['speed']
                 if self._goal_speed == "standard":
@@ -123,7 +125,7 @@ class MoveToActionFloatSam():
                     self._goal_speed = 2.0  
 
             except:
-                self._node.get_logger().info(f" no valid speed")
+                self._node.get_logger().info(f"no valid speed")
 
 
             #self._goal_speed = goal_request['speed']
