@@ -39,6 +39,7 @@ class Captain(Node):
         self.update_rate = float(self.get_parameter("update_rate").value)
         self.logger.info(f"Update rate: {self.update_rate} Hz")
         self.robot_name = self.get_parameter("robot_name").value
+        self.yaw_threshold = self.get_parameter("yaw_threshold").value
 
         # Initialize PID 
         
@@ -72,6 +73,10 @@ class Captain(Node):
         
         self.rpm_deadband = self.get_parameter("rpm_deadband").value
         self.thruster_limit = self.get_parameter("thruster_limit").value
+        # Turn-in-place tuning: minimum RPM applied when velocity is zero,
+        # and a gain to scale action by heading error magnitude.
+        self.turn_in_place_min_rpm = self.get_parameter("turn_in_place_min_rpm").value
+        self.turn_in_place_gain = self.get_parameter("turn_in_place_gain").value
         
         # Delta RPM rate limiting (health check)
         self.max_delta_rpm = self.get_parameter("max_delta_rpm").value
@@ -133,6 +138,7 @@ class Captain(Node):
         self.declare_parameter("yaw_i_gain", 0.0)
         self.declare_parameter("yaw_d_gain", 0.0)
         self.declare_parameter("yaw_output_limit", 0.1)  # rad/s
+        self.declare_parameter("yaw_threshold", 0.3)
         
         # Yaw Rate PID parameters
         self.declare_parameter("yawrate_p_gain", 20.0)
@@ -150,6 +156,9 @@ class Captain(Node):
         self.declare_parameter("rpm_deadband", 50.0)  # RPM
         self.declare_parameter("thruster_limit", 1000.0)  # RPM
         self.declare_parameter("max_delta_rpm", 200.0)  # RPM per control cycle
+        # Parameters for turn-in-place behaviour
+        self.declare_parameter("turn_in_place_min_rpm", 200.0)  # RPM, minimum to overcome stiction
+        self.declare_parameter("turn_in_place_gain", 100.0)  # RPM per radian of heading error
 
     # Callbacks: Sensor measurements
     
@@ -177,8 +186,6 @@ class Captain(Node):
     def velocity_setpoint_cb(self, msg):
         self.last_velocity_setpoint_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         self.velocity_setpoint_input = msg.data
-
-
 
     # Rate limiter (delta RPM health check)
     
@@ -210,6 +217,23 @@ class Captain(Node):
         
         return new_cmd
 
+    def compute_turn_in_place_actuation(self, yaw_error, yaw_actuation):
+            """
+            Compute a stable yaw actuation for turn-in-place behaviour.
+            - Use the sign of `yaw_error` to determine rotation direction to
+                avoid oscillation when the PID output crosses zero.
+            - Ensure a minimum RPM magnitude to overcome stiction and
+                accelerate convergence, and scale with error magnitude.
+            - Limit to `thruster_limit`.
+            """
+            err_mag = abs(yaw_error)
+            if err_mag == 0.0:
+                    return 0.0
+            # Minimum actuation is either the PID output magnitude, configured
+            # minimum, or a gain times the heading error.
+            mag = max(abs(yaw_actuation), self.turn_in_place_min_rpm, self.turn_in_place_gain * err_mag)
+            mag = min(mag, self.thruster_limit)
+            return np.sign(yaw_error) * mag
     # Main control update loop
 
     def update(self):
@@ -265,7 +289,7 @@ class Captain(Node):
         measurement_vec = np.array([np.cos(self.yaw_measurement), np.sin(self.yaw_measurement)])
         yaw_error = -geom.vec2_directed_angle(setpoint_vec, measurement_vec)
         
-        self.logger.info(f"LOOOOOOOOK Error Heading: {yaw_error}, yaw setpoint: {self.yaw_setpoint}, yaw measured: {self.yaw_measurement}" )
+        self.logger.info(f"Error Heading: {yaw_error}, yaw setpoint: {self.yaw_setpoint}, yaw measured: {self.yaw_measurement}" )
 
         yaw_rate_setpoint = self.yaw_pid.update_error(yaw_error, now)
         
@@ -273,19 +297,31 @@ class Captain(Node):
         yaw_rate_error = yaw_rate_setpoint - self.yaw_rate_measurement
         yaw_actuation = self.yawrate_pid.update_error(yaw_rate_error, now)
 
-        
+        if np.abs(yaw_error) <= self.yaw_threshold:
         # Step 3: Velocity PID - convert velocity error to RPM setpoint
-        velocity_error = self.velocity_setpoint_input - self.velocity_measurement
-        velocity_rpm_setpoint = self.velocity_pid.update_error(velocity_error, now)
-
+            velocity_error = self.velocity_setpoint_input - self.velocity_measurement
+            velocity_rpm_setpoint = self.velocity_pid.update_error(velocity_error, now)
+            #self.logger.info(f"The yaw_error is: {yaw_error}, The yaw_threshold is: {self.yaw_threshold}" )
+        else:
+            velocity_rpm_setpoint = 0
 
         # Mixing: Differential thrust
         
-        yaw_correction = yaw_actuation
+        # If we're commanded to turn-in-place (no forward velocity), use
+        # a specially computed yaw actuation that keeps direction stable
+        # and enforces a minimum magnitude to overcome deadband/stiction.
+        if velocity_rpm_setpoint == 0:
+            yaw_correction = self.compute_turn_in_place_actuation(yaw_error, yaw_actuation)
+        else:
+            yaw_correction = yaw_actuation
         
         # Base RPM for both thrusters, then add/subtract for steering
+
+        
         thruster_port_raw = velocity_rpm_setpoint - yaw_correction
         thruster_strb_raw = velocity_rpm_setpoint + yaw_correction
+
+        self.logger.info(f"thruster_port_raw:{thruster_port_raw}, thruster_strb_raw{thruster_strb_raw}")
 
         # Health Check: Delta RPM rate limiting
         
@@ -324,7 +360,6 @@ class Captain(Node):
         # Save for delta RPM calculation next cycle
         self.last_thruster_port_cmd = thruster_port
         self.last_thruster_strb_cmd = thruster_strb
-
 
 
 def main(args=None, namespace=None):

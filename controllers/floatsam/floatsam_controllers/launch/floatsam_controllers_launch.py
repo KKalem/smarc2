@@ -45,6 +45,7 @@ def generate_launch_description():
             "yaw_i_gain": 0.0,
             "yaw_d_gain": 0.1,
             "yaw_output_limit": 1.0,  # rad/s max yaw rate
+            "yaw_threshold": 0.5,
             
             # ===== YAW RATE PID PARAMETERS =====
             # Converts yaw_rate error to actuation signal
