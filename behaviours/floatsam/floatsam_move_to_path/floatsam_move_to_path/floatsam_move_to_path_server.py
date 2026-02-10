@@ -51,7 +51,7 @@ class MoveToPathActionFloatSam():
         # create the gentler action server to expose 'move_to'
         self._as = GentlerActionServer(
             node,
-            "move_to",
+            "move_path",
             self._on_goal_received,
             self._on_cancel_received,
             self._prepare_loop,
@@ -121,7 +121,7 @@ class MoveToPathActionFloatSam():
             self._goal_tolerance=[]
             self.index = 0 # RESETTA L'INDICE!
 
-            waypoints = goal_request['waypoint']
+            waypoints = goal_request['waypoints']
             # Se per caso arriva un singolo dizionario invece di una lista, mettilo in una lista
             if not isinstance(waypoints, list):
                 waypoints = [waypoints]

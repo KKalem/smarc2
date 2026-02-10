@@ -1,4 +1,0 @@
-[0.000000] (-) TimerEvent: {}
-[0.000542] (-) JobUnselected: {'identifier': 'smarc_bringups'}
-[0.000602] (-) JobUnselected: {'identifier': 'tmux_alert'}
-[0.001478] (-) EventReactorShutdown: {}

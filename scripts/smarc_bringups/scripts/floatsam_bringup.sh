@@ -53,7 +53,8 @@ tmux select-pane -t $SESSION:4.0
 tmux split-window -h -t $SESSION:4.0
 tmux select-pane -t $SESSION:4.0
 tmux send-keys "sleep 4; ros2 launch floatsam_move_to floatsam_move_to.launch.py" C-m
-
+tmux select-pane -t $SESSION:4.1
+tmux send-keys "sleep 4; ros2 launch floatsam_move_to_path floatsam_move_to_path.launch.py" C-m
 
 # --- Behavior tree (WASP BT) ---
 tmux new-window -t $SESSION:5 -n 'bt'
