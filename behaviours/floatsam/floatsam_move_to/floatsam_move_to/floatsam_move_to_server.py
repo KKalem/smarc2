@@ -96,7 +96,7 @@ class MoveToActionFloatSam():
 
     def _on_goal_received(self, goal_request: dict) -> bool:
         
-        self._node.get_logger().info(f"Goal request received: {goal_request} piselli")
+        self._node.get_logger().info(f"Goal request received: {goal_request}")
 
         try:
             # first transform the latlon goal into UTM
@@ -107,7 +107,7 @@ class MoveToActionFloatSam():
             self._goal_in_map = self._floatsam.convert_geopoint_to_map_pose_stamped(gp)
 
             self._goal_tolerance = float(goal_request['waypoint']['tolerance'])
-            self._node.get_logger().info(f" \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n Goal tolerance {self._goal_tolerance}\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\ ")
+            self._node.get_logger().info(f"Goal tolerance: {self._goal_tolerance}")
 
 
             try:
@@ -124,11 +124,10 @@ class MoveToActionFloatSam():
                 else:
                     self._goal_speed = 2.0  
 
-            except:
-                self._node.get_logger().info(f"no valid speed")
+            except Exception as e:
+                self._node.get_logger().warning(f"No valid speed specified, using default: {e}")
+                self._goal_speed = 2.0
 
-
-            #self._goal_speed = goal_request['speed']
 
             pos = self._goal_in_map.pose.position
             
@@ -136,8 +135,8 @@ class MoveToActionFloatSam():
             
             return True
         
-        except:
-            self._node.get_logger().error("Failed to parse goal request")
+        except Exception as e:
+            self._node.get_logger().error(f"Failed to parse goal request: {e}")
             traceback.print_exc()
             return False
 

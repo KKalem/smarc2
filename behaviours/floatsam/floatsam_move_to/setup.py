@@ -28,6 +28,7 @@ setup(
     entry_points={
         'console_scripts': [
             'floatsam_move_to_action_server = floatsam_move_to.floatsam_move_to_server:main',
+            'floatsam_loiter_action_server = floatsam_move_to.floatsam_loiter_server:main',
         ],
     },
 )
