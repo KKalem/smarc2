@@ -138,7 +138,7 @@ class Captain(Node):
         self.declare_parameter("yaw_i_gain", 0.0)
         self.declare_parameter("yaw_d_gain", 0.0)
         self.declare_parameter("yaw_output_limit", 0.1)  # rad/s
-        self.declare_parameter("yaw_threshold", 0.3)
+        self.declare_parameter("yaw_threshold", 0.5)
         
         # Yaw Rate PID parameters
         self.declare_parameter("yawrate_p_gain", 20.0)
@@ -157,8 +157,8 @@ class Captain(Node):
         self.declare_parameter("thruster_limit", 1000.0)  # RPM
         self.declare_parameter("max_delta_rpm", 200.0)  # RPM per control cycle
         # Parameters for turn-in-place behaviour
-        self.declare_parameter("turn_in_place_min_rpm", 200.0)  # RPM, minimum to overcome stiction
-        self.declare_parameter("turn_in_place_gain", 100.0)  # RPM per radian of heading error
+        self.declare_parameter("turn_in_place_min_rpm", 100.0)  # RPM, minimum to overcome stiction
+        self.declare_parameter("turn_in_place_gain", 10.0)  # RPM per radian of heading error
 
     # Callbacks: Sensor measurements
     
