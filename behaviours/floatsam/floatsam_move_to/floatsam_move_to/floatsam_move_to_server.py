@@ -48,6 +48,13 @@ class MoveToActionFloatSam():
 
         self._speed_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10)
 
+        angle_topic = f"/{self._robot_name}/angle_threshold_captain"
+        self._angle_reference_publisher = self._node.create_publisher(
+            FloatStamped,
+            angle_topic,
+            10
+        )
+
         # create the gentler action server to expose 'move_to'
         self._as = GentlerActionServer(
             node,
@@ -205,6 +212,11 @@ class MoveToActionFloatSam():
         self._yaw_reference_publisher.publish(yaw_msg)
         self._speed_reference_publisher.publish(speed_msg)
 
+        angle_msg = FloatStamped()
+        angle_msg.header.stamp = now
+        angle_msg.data = 0.5  
+        self._angle_reference_publisher.publish(angle_msg)
+        
         return None
 
     def _give_feedback(self) -> str:

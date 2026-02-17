@@ -107,6 +107,10 @@ class Captain(Node):
                                  self.yawrate_meas_cb, 1)
         self.create_subscription(Float32, ControlTopics.CONTROL_SURGE_RATE_TOPIC,
                                  self.velocity_meas_cb, 1)
+    
+        angle_topic = f"/{self.robot_name}/angle_threshold_captain"
+        self.create_subscription(FloatStamped, angle_topic,
+                                 self.angle_threshold_cb, 1)
         
         # Subscribers: Setpoints from behavior layer
         
@@ -175,6 +179,9 @@ class Captain(Node):
     def velocity_meas_cb(self, msg):
         self.last_velocity_meas_time = self.time_now()
         self.velocity_measurement = msg.data
+
+    def angle_threshold_cb(self, msg):
+        self.yaw_threshold = msg.data
 
     # Callbacks: Setpoints from behavior layer
     

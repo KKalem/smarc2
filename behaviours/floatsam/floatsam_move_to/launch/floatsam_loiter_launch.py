@@ -19,7 +19,7 @@ def generate_launch_description():
         name='floatsam_loiter_action_server',
         parameters=[{
             'robot_name': robot_ns,
-            'loiter_tolerance': 5.0,  # meters - loiter circle radius
+            'loiter_tolerance': 2.0,  # meters - loiter circle radius
             'loiter_reposition_tolerance': 0.5,  # meters - strict tolerance for move_to
             'loiter_speed': 1.0,  # m/s - repositioning speed
             'loiter_move_to_speed': 'fast'  # move_to speed: 'slow', 'standard', or 'fast'

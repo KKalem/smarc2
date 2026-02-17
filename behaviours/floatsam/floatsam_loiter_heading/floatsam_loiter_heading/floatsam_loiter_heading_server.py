@@ -63,6 +63,7 @@ class LoiterActionFloatSam():
         self._last_reposition_trigger: float = 0.0  # Prevent rapid retriggering
         self._move_to_goal_handle = None  # Track active move_to goal
         self._move_to_result_future = None  # Track move_to completion
+        self._move_to_pending = False 
         
         # Subscribe to GPS topic to get current lat/lon position
         gps_topic = f"/{self._robot_name}/smarc/latlon"
@@ -72,6 +73,7 @@ class LoiterActionFloatSam():
             self._gps_callback,
             10
         )
+
         self._node.get_logger().info(f"Subscribed to GPS: {gps_topic}")
         
         # Action client to call move_to when out of bounds
@@ -95,6 +97,14 @@ class LoiterActionFloatSam():
         self._speed_reference_publisher = self._node.create_publisher(
             FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10
         )
+
+        angle_topic = f"/{self._robot_name}/angle_threshold_captain"
+        self._angle_reference_publisher = self._node.create_publisher(
+            FloatStamped,
+            angle_topic,
+            10
+        )
+
         self._heading_reference_publisher = self._node.create_publisher(
             FloatStamped, FloatsamTopics.YAW_SETPOINT, 10
         )
@@ -227,15 +237,12 @@ class LoiterActionFloatSam():
         self._distance_from_center = None
         self._start_time = self.now_time  # Record start time for timeout
         self._last_reposition_trigger = 0.0
+        self._move_to_pending = False
         return
 
     def _loop_inner(self) -> bool | None:
         """
-        Main loiter loop:
-        1. Check if timeout exceeded -> return success
-        2. Check if vehicle is within tolerance circle
-        3. If outside, trigger move_to action to return to center
-        4. If inside, maintain position (publish zero velocity)
+        Main loiter loop
         """
         if self._loiter_center_in_map is None:
             self._node.get_logger().error("No loiter center set, failing...")
@@ -251,9 +258,9 @@ class LoiterActionFloatSam():
         
         if elapsed_time >= self._timeout:
             self._node.get_logger().info(f"Loiter timeout reached ({self._timeout}s), completing successfully")
-            return True  # Success - loitered for the requested duration
+            return True  # Success
         
-        # Calculate distance from loiter center
+        # Calculate distance
         center_position = np.array([
             self._loiter_center_in_map.pose.position.x,
             self._loiter_center_in_map.pose.position.y
@@ -274,10 +281,24 @@ class LoiterActionFloatSam():
         )
         
         # Check if we're outside the tolerance circle
-        if self._distance_from_center > self._loiter_tolerance:
-            # Check if move_to is already running
-            if self._move_to_goal_handle is not None:
-                # move_to is active - check if it's done
+        if self._distance_from_center > self._loiter_tolerance and not self._move_to_pending:
+
+            self._node.get_logger().warning(f"Outside loiter tolerance! Triggering move_to to return to center...")
+            self._move_to_pending=True
+            self._trigger_move_to_center()
+            self._last_reposition_trigger = self.now_time
+        
+            return None
+        
+        else:
+            # Inside tolerance circle
+
+            # DEBUG LOG
+            self._node.get_logger().info("self.move_to_goal_handle: " + str(self._move_to_goal_handle) + "self._move_to_pending: " + str(self._move_to_pending))
+    
+            if self._move_to_goal_handle is not None or self._move_to_pending:
+                
+                # move_to is active OR pending - check if it's done
                 if self._move_to_result_future is not None and self._move_to_result_future.done():
                     try:
                         result = self._move_to_result_future.result()
@@ -285,37 +306,23 @@ class LoiterActionFloatSam():
                             self._node.get_logger().info("move_to completed successfully - returned to center")
                         else:
                             self._node.get_logger().warning("move_to failed - will retry on next loop")
-                        # Clear the goal handle so we can trigger again if needed
+                        
                         self._move_to_goal_handle = None
                         self._move_to_result_future = None
+                        self._move_to_pending = False  # Reset pending flag when done
+
                     except Exception as e:
                         self._node.get_logger().error(f"Error getting move_to result: {e}")
                         self._move_to_goal_handle = None
                         self._move_to_result_future = None
                 else:
-                    # move_to still running - DON'T publish anything, let move_to control the robot
-                    self._node.get_logger().debug("move_to action still running, waiting for completion...")
+                    self._node.get_logger().debug("move_to action active/pending, waiting...")
                     return None
+                
             else:
-                # No move_to running - trigger it
-                self._node.get_logger().warning(
-                    f"Outside loiter tolerance! Triggering move_to to return to center..."
-                )
-                self._trigger_move_to_center()
-                self._last_reposition_trigger = self.now_time
-            
-            # Continue loitering (don't end the action)
-            return None
-        
-        else:
-            # Inside tolerance circle - only publish zero setpoints if move_to is NOT running
-            if self._move_to_goal_handle is None:
                 self._node.get_logger().info("Within loiter tolerance, maintaining position")
                 self._publish_setpoints()
-            else:
-                self._node.get_logger().debug("Within tolerance but move_to still active, not interfering")
             
-            # Continue loitering indefinitely
             return None
 
     def _trigger_move_to_center(self):
@@ -344,21 +351,22 @@ class LoiterActionFloatSam():
                 f"tolerance={self._reposition_tolerance}m, speed={self._loiter_move_to_speed}"
             )
             
-            # Send goal and track it - we need to wait for completion
+            # Send goal and track it
             send_future = self._move_to_client.send_goal_async(goal_msg)
             send_future.add_done_callback(self._move_to_goal_response_callback)
             
         except Exception as e:
             self._node.get_logger().error(f"Error triggering move_to: {e}")
             traceback.print_exc()
-    
+            self._move_to_pending = False  # Reset flag in case of error
+
     def _move_to_goal_response_callback(self, future):
         """Callback when move_to server accepts/rejects the goal."""
         try:
+            
             goal_handle = future.result()
             if goal_handle.accepted:
                 self._node.get_logger().info("move_to goal accepted by server")
-                # Store the goal handle and get result future
                 self._move_to_goal_handle = goal_handle
                 self._move_to_result_future = goal_handle.get_result_async()
                 self._node.get_logger().info("Waiting for move_to to complete...")
@@ -366,23 +374,27 @@ class LoiterActionFloatSam():
                 self._node.get_logger().error("move_to goal REJECTED by server")
                 self._move_to_goal_handle = None
                 self._move_to_result_future = None
+                self._move_to_pending = False
         except Exception as e:
             self._node.get_logger().error(f"Error in move_to goal response callback: {e}")
             traceback.print_exc()
             self._move_to_goal_handle = None
             self._move_to_result_future = None
+            self._move_to_pending = False
 
     def _publish_setpoints(self):
         """Publish zero velocity and maintain current heading."""
-        speed_msg = FloatStamped()
-        speed_msg.header.stamp = self.now_stamp
-        speed_msg.data = 0.0
-        self._speed_reference_publisher.publish(speed_msg)
-        speed_msg.data = self.heading
-        self._heading_reference_publisher.publish(speed_msg)
+        msg = FloatStamped()
+        msg.header.stamp = self.now_stamp
+        msg.data = 0.0
+        self._speed_reference_publisher.publish(msg)
+        msg.data = self.heading
+        self._heading_reference_publisher.publish(msg)
+        msg.data = 0.15
+        self._angle_reference_publisher.publish(msg)
 
     def _give_feedback(self) -> str:
-        """Provide feedback about loiter status (time remaining, like lolo)."""
+        """Provide feedback about loiter status."""
         if self._start_time is not None and self._timeout is not None:
             elapsed_time = self.now_time - self._start_time
             time_remaining = self._timeout - elapsed_time
