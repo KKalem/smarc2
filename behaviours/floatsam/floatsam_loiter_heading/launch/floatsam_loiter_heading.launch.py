@@ -11,12 +11,16 @@ def generate_launch_description():
     robot_name = LaunchConfiguration('robot_name')
 
     node = Node(
-        package='floatsam_move_to',
-        executable='floatsam_move_to_action_server',
-        name='floatsam_move_to_action_server',
+        package='floatsam_loiter_heading',
+        executable='floatsam_loiter_heading_action_server',
+        name='floatsam_loiter_heading_action_server',
         namespace=robot_name,
         parameters=[{
-            'robot_name': robot_name,
+            "robot_name": robot_name,
+            "loiter_tolerance" : 5.0,
+            "loiter_reposition_tolerance": 0.5,
+            "loiter_move_to_speed": 'fast',
+
             "yaw_p_gain": 0.3,
             "yaw_i_gain": 0.0,
             "yaw_d_gain": 0.1,  
@@ -29,7 +33,7 @@ def generate_launch_description():
             "velocity_p_gain": 500.0,
             "velocity_i_gain": 10.0,
             "velocity_d_gain": 0.0
-        }],
+            }],
         output='screen'
     )
 

@@ -1,8 +1,8 @@
 #!/usr/bin/python
 
 import numpy as np
-
 import rclpy
+import json
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.time import Time, Duration
@@ -19,6 +19,8 @@ from geographic_msgs.msg import GeoPoint
 from geometry_msgs.msg import PointStamped
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
+from std_msgs.msg import String
+
 
 
 from tf2_geometry_msgs import do_transform_pose_stamped
@@ -43,15 +45,31 @@ class MoveToActionFloatSam():
         self._default_goal_tolerance = 1  
         self._default_speed_threshold = 10  # start slowing down when within 10m of goal 
 
+        self.declare_node_parameters()
+
+        # --- PID parameters and threshold for captain ---
+        self._loiter_yaw_p_gain = str(self._node.get_parameter('yaw_p_gain').value)
+        self._loiter_yaw_i_gain = str(self._node.get_parameter('yaw_i_gain').value)
+        self._loiter_yaw_d_gain = str(self._node.get_parameter('yaw_d_gain').value)
+        self._loiter_yaw_threshold = str(self._node.get_parameter('yaw_threshold').value)
+
+        self._loiter_yawrate_p_gain = str(self._node.get_parameter('yawrate_p_gain').value)
+        self._loiter_yawrate_i_gain = str(self._node.get_parameter('yawrate_i_gain').value)
+        self._loiter_yawrate_d_gain = str(self._node.get_parameter('yawrate_d_gain').value)
+
+        self._loiter_velocity_p_gain = str(self._node.get_parameter('velocity_p_gain').value)
+        self._loiter_velocity_i_gain = str(self._node.get_parameter('velocity_i_gain').value)
+        self._loiter_velocity_d_gain = str(self._node.get_parameter('velocity_d_gain').value)
+
         # Publishers use FloatsamTopics constants (relative paths get robot namespace)
         self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.YAW_SETPOINT, 10)
 
         self._speed_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10)
 
-        angle_topic = f"/{self._robot_name}/angle_threshold_captain"
-        self._angle_reference_publisher = self._node.create_publisher(
-            FloatStamped,
-            angle_topic,
+        # publisher for captain parameters 
+        self._captain_parameters_publisher = self._node.create_publisher(
+            String, 
+            'captain_parameters',
             10
         )
 
@@ -72,6 +90,24 @@ class MoveToActionFloatSam():
         self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
 
+        # Timer to publish captain parameters continuously (so topic appears in ros2 topic list)
+        self._captain_params_timer = self._node.create_timer(0.5, self._publish_captain_parametrs)
+
+    def declare_node_parameters(self) -> None:
+        self._node.declare_parameter("yaw_p_gain", 0.3)
+        self._node.declare_parameter("yaw_i_gain", 0.0)
+        self._node.declare_parameter("yaw_d_gain", 0.1)
+        self._node.declare_parameter("yaw_threshold", 0.5)
+
+        self._node.declare_parameter("yawrate_p_gain", 300.0)
+        self._node.declare_parameter("yawrate_i_gain", 0.0)
+        self._node.declare_parameter("yawrate_d_gain", 30.0)
+
+        self._node.declare_parameter("velocity_p_gain", 500.0)
+        self._node.declare_parameter("velocity_i_gain", 10.0)
+        self._node.declare_parameter("velocity_d_gain", 0.0)
+    
+    
     @property
     def now_stamp(self):
         return self._node.get_clock().now().to_msg()
@@ -224,6 +260,24 @@ class MoveToActionFloatSam():
             return f"Distance remaining: {self._distance_remaining:.2f} (tolerance: {self._goal_tolerance:.2f}m)"
         else:
             return "No distance remaining info"
+        
+    def _publish_captain_parametrs(self):
+        """It publish the message containing the parameters for captain node"""
+        parameters = {
+            "yaw_p_gain" : self._loiter_yaw_p_gain,
+            "yaw_i_gain" : self._loiter_yaw_i_gain,
+            "yaw_d_gain" : self._loiter_yaw_d_gain,
+            "yaw_threshold" : self._loiter_yaw_threshold,
+            "yawrate_p_gain" : self._loiter_yawrate_p_gain,
+            "yawrate_i_gain" : self._loiter_yawrate_i_gain,
+            "yawrate_d_gain" : self._loiter_yaw_d_gain,
+            "velocity_p_gain" : self._loiter_velocity_p_gain, 
+            "velocity_i_gain" : self._loiter_velocity_i_gain, 
+            "velocity_d_gain" : self._loiter_velocity_d_gain
+        }
+        msg = String()
+        msg.data = json.dumps(parameters)
+        self._captain_parameters_publisher.publish(msg)
         
 
 def main(args=None):

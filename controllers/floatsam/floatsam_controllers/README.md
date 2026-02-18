@@ -93,6 +93,68 @@ if abs(delta) > max_delta_rpm:
 - `/floatsam_usv/actuators/thruster_port_cmd` (Float32) - Port thruster RPM
 - `/floatsam_usv/actuators/thruster_strb_cmd` (Float32) - Starboard thruster RPM
 
+### Runtime Parameter Updates (from Action Servers)
+- `/floatsam_usv/captain_parameters` (String) - JSON dictionary for dynamic PID reconfiguration
+
+**⚠️ Important for Action Server Developers:**
+
+Any action server that publishes setpoints (`yaw_setpoint`, `velocity_setpoint`) and expects the Captain's PIDs to operate **must publish** a JSON dictionary to the `captain_parameters` topic. This allows behaviors to dynamically adjust PID gains for different maneuvers.
+
+**Required JSON Structure:**
+```json
+{
+  "yaw_p_gain": 0.15,
+  "yaw_i_gain": 0.0,
+  "yaw_d_gain": 0.0,
+  "yaw_threshold": 0.1,
+  "yawrate_p_gain": 20.0,
+  "yawrate_i_gain": 0.0,
+  "yawrate_d_gain": 0.0,
+  "velocity_p_gain": 500.0,
+  "velocity_i_gain": 10.0,
+  "velocity_d_gain": 0.0
+}
+```
+
+**Example Implementation (Python):**
+```python
+import json
+from std_msgs.msg import String
+
+# In your action server __init__:
+self._captain_parameters_publisher = self.create_publisher(
+    String, 
+    'captain_parameters', 
+    1
+)
+
+ # Timer to publish captain parameters continuously 
+self._captain_params_timer = self._node.create_timer(0.5, self._publish_captain_parametrs)
+
+
+# Publish parameters:
+def _publish_captain_parameters(self):
+    parameters = {
+        "yaw_p_gain": self._yaw_p_gain,
+        "yaw_i_gain": self._yaw_i_gain,
+        "yaw_d_gain": self._yaw_d_gain,
+        "yaw_threshold": self._yaw_threshold,
+        "yawrate_p_gain": self._yawrate_p_gain,
+        "yawrate_i_gain": self._yawrate_i_gain,
+        "yawrate_d_gain": self._yawrate_d_gain,
+        "velocity_p_gain": self._velocity_p_gain,
+        "velocity_i_gain": self._velocity_i_gain,
+        "velocity_d_gain": self._velocity_d_gain
+    }
+    msg = String()
+    msg.data = json.dumps(parameters)
+    self._captain_parameters_publisher.publish(msg)
+```
+
+**See Examples:**
+- [floatsam_move_to_server.py](vsls:/behaviours/floatsam/floatsam_move_to/floatsam_move_to/floatsam_move_to_server.py#L264-L280)
+- [floatsam_loiter_server.py](vsls:/behaviours/floatsam/floatsam_move_to/floatsam_move_to/floatsam_loiter_server.py#L432-L448)
+
 ## Usage
 
 ### Launch the control stack:

@@ -2,6 +2,7 @@
 
 import numpy as np
 import rclpy
+import json
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.action import ActionClient
@@ -18,8 +19,9 @@ from nav_msgs.msg import Odometry
 from smarc_msgs.action import BaseAction
 from std_msgs.msg import String
 
+
 from smarc_action_base.gentler_action_server import GentlerActionServer
-import json
+
 
 
 class LoiterActionFloatSam():
@@ -31,9 +33,21 @@ class LoiterActionFloatSam():
         self._node: Node = node
         
         # Declare node parameters (internal configuration)
-        self._node.declare_parameter('loiter_tolerance', 5.0)  # meters - loiter circle radius
-        self._node.declare_parameter('loiter_reposition_tolerance', 0.5)  # meters - strict tolerance for move_to
-        self._node.declare_parameter('loiter_move_to_speed', 'fast')  # move_to speed: 'slow', 'standard', or 'fast'
+        self.declare_node_parameters()
+
+        # --- PID parameters and threshold for captain ---
+        self._loiter_yaw_p_gain = str(self._node.get_parameter('yaw_p_gain').value)
+        self._loiter_yaw_i_gain = str(self._node.get_parameter('yaw_i_gain').value)
+        self._loiter_yaw_d_gain = str(self._node.get_parameter('yaw_d_gain').value)
+        self._loiter_yaw_threshold = str(self._node.get_parameter('yaw_threshold').value)
+
+        self._loiter_yawrate_p_gain = str(self._node.get_parameter('yawrate_p_gain').value)
+        self._loiter_yawrate_i_gain = str(self._node.get_parameter('yawrate_i_gain').value)
+        self._loiter_yawrate_d_gain = str(self._node.get_parameter('yawrate_d_gain').value)
+
+        self._loiter_velocity_p_gain = str(self._node.get_parameter('velocity_p_gain').value)
+        self._loiter_velocity_i_gain = str(self._node.get_parameter('velocity_i_gain').value)
+        self._loiter_velocity_d_gain = str(self._node.get_parameter('velocity_d_gain').value)
         
         # Get robot name from node parameter
         self._robot_name: str = self._node.get_parameter('robot_name').value
@@ -95,6 +109,13 @@ class LoiterActionFloatSam():
         self._speed_reference_publisher = self._node.create_publisher(
             FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10
         )
+
+        # publisher for captain parameters 
+        self._captain_parameters_publisher = self._node.create_publisher(
+            String, 
+            'captain_parameters',
+            10
+        )
         
         # Create the loiter action server
         self._as = GentlerActionServer(
@@ -111,6 +132,9 @@ class LoiterActionFloatSam():
         # Timer for initial position check
         self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
+
+        # Timer to publish captain parameters continuously (so topic appears in ros2 topic list)
+        self._captain_params_timer = self._node.create_timer(0.5, self._publish_captain_parametrs)
 
     @property
     def now_stamp(self):
@@ -386,6 +410,42 @@ class LoiterActionFloatSam():
             return f"time_remaining: {time_remaining:.1f}s, distance: {self._distance_from_center:.2f}m"
         else:
             return "Loiter not started"
+        
+    def declare_node_parameters(self) -> None:
+        self._node.declare_parameter('loiter_tolerance', 5.0)  # meters - loiter circle radius
+        self._node.declare_parameter('loiter_reposition_tolerance', 0.5)  # meters - strict tolerance for move_to
+        self._node.declare_parameter('loiter_move_to_speed', 'fast')  # move_to speed: 'slow', 'standard', or 'fast'
+
+        self._node.declare_parameter("yaw_p_gain", 0.3)
+        self._node.declare_parameter("yaw_i_gain", 0.0)
+        self._node.declare_parameter("yaw_d_gain", 0.1)
+        self._node.declare_parameter("yaw_threshold", 0.5)
+
+        self._node.declare_parameter("yawrate_p_gain", 300.0)
+        self._node.declare_parameter("yawrate_i_gain", 0.0)
+        self._node.declare_parameter("yawrate_d_gain", 30.0)
+
+        self._node.declare_parameter("velocity_p_gain", 500.0)
+        self._node.declare_parameter("velocity_i_gain", 10.0)
+        self._node.declare_parameter("velocity_d_gain", 0.0)
+
+    def _publish_captain_parametrs(self):
+        """It publish the message containing the parameters for captain node"""
+        parameters = {
+            "yaw_p_gain" : self._loiter_yaw_p_gain,
+            "yaw_i_gain" : self._loiter_yaw_i_gain,
+            "yaw_d_gain" : self._loiter_yaw_d_gain,
+            "yaw_threshold" : self._loiter_yaw_threshold,
+            "yawrate_p_gain" : self._loiter_yawrate_p_gain,
+            "yawrate_i_gain" : self._loiter_yawrate_i_gain,
+            "yawrate_d_gain" : self._loiter_yaw_d_gain,
+            "velocity_p_gain" : self._loiter_velocity_p_gain, 
+            "velocity_i_gain" : self._loiter_velocity_i_gain, 
+            "velocity_d_gain" : self._loiter_velocity_d_gain
+        }
+        msg = String()
+        msg.data = json.dumps(parameters)
+        self._captain_parameters_publisher.publish(msg)
 
 
 def main(args=None):

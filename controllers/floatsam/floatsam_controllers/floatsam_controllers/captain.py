@@ -4,8 +4,10 @@
 
 import numpy as np
 import rclpy
+import json
 from rclpy.node import Node
 from std_msgs.msg import Float32
+from std_msgs.msg import String
 from rclpy.executors import MultiThreadedExecutor
 
 from smarc_msgs.msg import Topics as SmarcTopics
@@ -108,9 +110,9 @@ class Captain(Node):
         self.create_subscription(Float32, ControlTopics.CONTROL_SURGE_RATE_TOPIC,
                                  self.velocity_meas_cb, 1)
     
-        angle_topic = f"/{self.robot_name}/angle_threshold_captain"
-        self.create_subscription(FloatStamped, angle_topic,
-                                 self.angle_threshold_cb, 1)
+        # angle_topic = f"/{self.robot_name}/angle_threshold_captain"
+        # self.create_subscription(FloatStamped, angle_topic,
+        #                          self.angle_threshold_cb, 1)
         
         # Subscribers: Setpoints from behavior layer
         
@@ -118,6 +120,14 @@ class Captain(Node):
                                  self.yaw_setpoint_cb, 1)
         self.create_subscription(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT,
                                  self.velocity_setpoint_cb, 1)
+        
+        # Subscriber for "captain_paramaters"
+
+        self.create_subscription(String, 
+                                 f"/{self.robot_name}/captain_parameters",
+                                 self.captain_parameters_cb, 1
+                                 )
+        
 
         # Publishers: Thruster commands
         
@@ -180,8 +190,8 @@ class Captain(Node):
         self.last_velocity_meas_time = self.time_now()
         self.velocity_measurement = msg.data
 
-    def angle_threshold_cb(self, msg):
-        self.yaw_threshold = msg.data
+    # def angle_threshold_cb(self, msg):
+    #     self.yaw_threshold = msg.data
 
     # Callbacks: Setpoints from behavior layer
     
@@ -194,8 +204,24 @@ class Captain(Node):
         self.last_velocity_setpoint_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         self.velocity_setpoint_input = msg.data
 
-    # Rate limiter (delta RPM health check)
+    def captain_parameters_cb(self, msg):
+        try:
+            paramaters = json.loads(msg.data)
+            self.yaw_pid.kP = paramaters.get("yaw_p_gain", self.yaw_pid.kP)
+            self.yaw_pid.kI = paramaters.get("yaw_i_gain", self.yaw_pid.kI)
+            self.yaw_pid.kD = paramaters.get("yaw_d_gain", self.yaw_pid.kD)
+            self.yaw_pid.yaw_threshold = paramaters.get("yaw_threshold", self.yaw_pid.max_output)   
+            self.yawrate_pid.kP = paramaters.get("yawrate_p_gain", self.yawrate_pid.kP)
+            self.yawrate_pid.kI = paramaters.get("yawrate_i_gain", self.yawrate_pid.kI)
+            self.yawrate_pid.kD = paramaters.get("yawrate_d_gain", self.yawrate_pid.kD)
+            self.velocity_pid.kP = paramaters.get("velocity_p_gain", self.velocity_pid.kP)
+            self.velocity_pid.kI = paramaters.get("velocity_i_gain", self.velocity_pid.kI)
+            self.velocity_pid.kD = paramaters.get("velocity_d_gain", self.velocity_pid.kD)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to parse captain parameters: {e}")
     
+    # Rate limiter (delta RPM health check)
     def apply_rate_limit(self, new_cmd, last_cmd, name):
         """
         Limit the rate of change of thruster commands.
@@ -288,7 +314,7 @@ class Captain(Node):
             self.last_thruster_strb_cmd = 0.0
             return
 
-        # PID Control Cascade
+        # --- PID Control Cascade ---
         
         # Step 1: Yaw PID - convert angle error to yaw_rate setpoint
         # Use vector-based angle difference for wraparound handling
@@ -314,9 +340,6 @@ class Captain(Node):
 
         # Mixing: Differential thrust
         
-        # If we're commanded to turn-in-place (no forward velocity), use
-        # a specially computed yaw actuation that keeps direction stable
-        # and enforces a minimum magnitude to overcome deadband/stiction.
         if velocity_rpm_setpoint == 0:
             yaw_correction = self.compute_turn_in_place_actuation(yaw_error, yaw_actuation)
         else:
@@ -324,7 +347,6 @@ class Captain(Node):
         
         # Base RPM for both thrusters, then add/subtract for steering
 
-        
         thruster_port_raw = velocity_rpm_setpoint - yaw_correction
         thruster_strb_raw = velocity_rpm_setpoint + yaw_correction
 
