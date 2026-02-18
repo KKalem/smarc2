@@ -90,8 +90,6 @@ class MoveToActionFloatSam():
         self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
 
-        # Timer to publish captain parameters continuously (so topic appears in ros2 topic list)
-        self._captain_params_timer = self._node.create_timer(0.5, self._publish_captain_parametrs)
 
     def declare_node_parameters(self) -> None:
         self._node.declare_parameter("yaw_p_gain", 0.3)
@@ -251,7 +249,8 @@ class MoveToActionFloatSam():
         angle_msg = FloatStamped()
         angle_msg.header.stamp = now
         angle_msg.data = 0.5  
-        self._angle_reference_publisher.publish(angle_msg)
+        #self._angle_reference_publisher.publish(angle_msg)
+        self._publish_captain_parametrs()
         
         return None
 

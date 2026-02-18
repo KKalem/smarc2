@@ -64,6 +64,8 @@ def generate_launch_description():
             # ===== MIXER PARAMETERS =====
             "rpm_deadband": 50.0,  # Minimum RPM threshold
             "thruster_limit": 1000.0,  # Maximum RPM
+            "turn_in_place_min_rpm": 100.0,  # Minimum RPM for turn-in-place
+            "turn_in_place_gain": 10.0,  # RPM per radian of heading error
             
             # ===== HEALTH CHECK PARAMETERS =====
             "max_delta_rpm": 200.0,  # Maximum RPM change per control cycle (rate limiter)

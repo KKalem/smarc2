@@ -88,9 +88,6 @@ class MoveToPathActionFloatSam():
         self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
 
-        # Timer to publish captain parameters continuously (so topic appears in ros2 topic list)
-        self._captain_params_timer = self._node.create_timer(0.5, self._publish_captain_parametrs)
-
         self.index=0
 
     @property
@@ -253,6 +250,7 @@ class MoveToPathActionFloatSam():
         speed_msg.data = speed
         self._yaw_reference_publisher.publish(yaw_msg)
         self._speed_reference_publisher.publish(speed_msg)
+        self._publish_captain_parametrs()
 
         return None
 

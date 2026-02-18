@@ -41,47 +41,47 @@ class Captain(Node):
         self.update_rate = float(self.get_parameter("update_rate").value)
         self.logger.info(f"Update rate: {self.update_rate} Hz")
         self.robot_name = self.get_parameter("robot_name").value
-        self.yaw_threshold = self.get_parameter("yaw_threshold").value
+        self.yaw_threshold = float(self.get_parameter("yaw_threshold").value)
 
         # Initialize PID 
         
         # Yaw PID: converts heading error to yaw_rate setpoint
         self.yaw_pid = PID(
-            kP=self.get_parameter("yaw_p_gain").value,
-            kI=self.get_parameter("yaw_i_gain").value,
-            kD=self.get_parameter("yaw_d_gain").value,
-            max_output=self.get_parameter("yaw_output_limit").value
+            kP=float(self.get_parameter("yaw_p_gain").value),
+            kI=float(self.get_parameter("yaw_i_gain").value),
+            kD=float(self.get_parameter("yaw_d_gain").value),
+            max_output=float(self.get_parameter("yaw_output_limit").value)
         )
         
         # Yaw Rate PID: converts yaw_rate error to yaw actuation
         self.yawrate_pid = PID(
-            kP=self.get_parameter("yawrate_p_gain").value,
-            kI=self.get_parameter("yawrate_i_gain").value,
-            kD=self.get_parameter("yawrate_d_gain").value,
-            max_output=self.get_parameter("yawrate_output_limit").value
+            kP=float(self.get_parameter("yawrate_p_gain").value),
+            kI=float(self.get_parameter("yawrate_i_gain").value),
+            kD=float(self.get_parameter("yawrate_d_gain").value),
+            max_output=float(self.get_parameter("yawrate_output_limit").value)
         )
         
         # Velocity PID: converts velocity error to RPM setpoint
         self.velocity_pid = PID(
-            kP=self.get_parameter("velocity_p_gain").value,
-            kI=self.get_parameter("velocity_i_gain").value,
-            kD=self.get_parameter("velocity_d_gain").value,
-            max_output=self.get_parameter("velocity_output_limit").value
+            kP=float(self.get_parameter("velocity_p_gain").value),
+            kI=float(self.get_parameter("velocity_i_gain").value),
+            kD=float(self.get_parameter("velocity_d_gain").value),
+            max_output=float(self.get_parameter("velocity_output_limit").value)
         )
         
         self.logger.info("Initialized 3 PID controllers with configurable gains")
 
         # Mixer parameters
         
-        self.rpm_deadband = self.get_parameter("rpm_deadband").value
-        self.thruster_limit = self.get_parameter("thruster_limit").value
+        self.rpm_deadband = float(self.get_parameter("rpm_deadband").value)
+        self.thruster_limit = float(self.get_parameter("thruster_limit").value)
         # Turn-in-place tuning: minimum RPM applied when velocity is zero,
         # and a gain to scale action by heading error magnitude.
-        self.turn_in_place_min_rpm = self.get_parameter("turn_in_place_min_rpm").value
-        self.turn_in_place_gain = self.get_parameter("turn_in_place_gain").value
+        self.turn_in_place_min_rpm = float(self.get_parameter("turn_in_place_min_rpm").value)
+        self.turn_in_place_gain = float(self.get_parameter("turn_in_place_gain").value)
         
         # Delta RPM rate limiting (health check)
-        self.max_delta_rpm = self.get_parameter("max_delta_rpm").value
+        self.max_delta_rpm = float(self.get_parameter("max_delta_rpm").value)
         self.last_thruster_port_cmd = 0.0
         self.last_thruster_strb_cmd = 0.0
         
@@ -207,16 +207,16 @@ class Captain(Node):
     def captain_parameters_cb(self, msg):
         try:
             paramaters = json.loads(msg.data)
-            self.yaw_pid.kP = paramaters.get("yaw_p_gain", self.yaw_pid.kP)
-            self.yaw_pid.kI = paramaters.get("yaw_i_gain", self.yaw_pid.kI)
-            self.yaw_pid.kD = paramaters.get("yaw_d_gain", self.yaw_pid.kD)
-            self.yaw_pid.yaw_threshold = paramaters.get("yaw_threshold", self.yaw_pid.max_output)   
-            self.yawrate_pid.kP = paramaters.get("yawrate_p_gain", self.yawrate_pid.kP)
-            self.yawrate_pid.kI = paramaters.get("yawrate_i_gain", self.yawrate_pid.kI)
-            self.yawrate_pid.kD = paramaters.get("yawrate_d_gain", self.yawrate_pid.kD)
-            self.velocity_pid.kP = paramaters.get("velocity_p_gain", self.velocity_pid.kP)
-            self.velocity_pid.kI = paramaters.get("velocity_i_gain", self.velocity_pid.kI)
-            self.velocity_pid.kD = paramaters.get("velocity_d_gain", self.velocity_pid.kD)
+            self.yaw_pid.kP = float(paramaters["yaw_p_gain"])
+            self.yaw_pid.kI = float(paramaters["yaw_i_gain"])
+            self.yaw_pid.kD = float(paramaters["yaw_d_gain"])
+            self.yaw_threshold = float(paramaters["yaw_threshold"])   
+            self.yawrate_pid.kP = float(paramaters["yawrate_p_gain"])
+            self.yawrate_pid.kI = float(paramaters["yawrate_i_gain"])
+            self.yawrate_pid.kD = float(paramaters["yawrate_d_gain"])
+            self.velocity_pid.kP = float(paramaters["velocity_p_gain"])
+            self.velocity_pid.kI = float(paramaters["velocity_i_gain"])
+            self.velocity_pid.kD = float(paramaters["velocity_d_gain"])
             
         except Exception as e:
             self.logger.error(f"Failed to parse captain parameters: {e}")

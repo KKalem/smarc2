@@ -133,9 +133,6 @@ class LoiterActionFloatSam():
         self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
 
-        # Timer to publish captain parameters continuously (so topic appears in ros2 topic list)
-        self._captain_params_timer = self._node.create_timer(0.5, self._publish_captain_parametrs)
-
     @property
     def now_stamp(self):
         return self._node.get_clock().now().to_msg()
@@ -239,6 +236,13 @@ class LoiterActionFloatSam():
         self._node.get_logger().info("Loiter cancel requested, stopping...")
         self._loiter_center_in_map = None
         self._loiter_center_geopoint = None
+        # Cancel active move_to goal if it exists
+        if self._move_to_goal_handle is not None:
+            self._node.get_logger().info("Cancelling active move_to goal...")
+            cancel_future = self._move_to_goal_handle.cancel_goal_async()
+            self._move_to_goal_handle = None
+        
+        self._move_to_result_future = None
         
         # Stop the vehicle
         self._publish_zero_setpoints()
@@ -273,8 +277,19 @@ class LoiterActionFloatSam():
         time_remaining = self._timeout - elapsed_time
         
         if elapsed_time >= self._timeout:
-            self._node.get_logger().info(f"Loiter timeout reached ({self._timeout}s), completing successfully")
-            return True  # Success - loitered for the requested duration
+            if self._move_to_goal_handle is not None:
+                self._node.get_logger().info("Cancelling active move_to goal...")
+                cancel_future = self._move_to_goal_handle.cancel_goal_async()
+                self._move_to_goal_handle = None
+                self._move_to_pending = False
+            # Timeout reached - check if within tolerance circle
+            if self._distance_from_center is not None and self._distance_from_center <= self._loiter_tolerance:
+                self._node.get_logger().info(f"Loiter timeout reached ({self._timeout}s) and within tolerance - completing successfully")
+                return True  # Success
+            else:
+                self._node.get_logger().warning(f"Loiter timeout reached ({self._timeout}s) but NOT within tolerance (distance={self._distance_from_center:.2f}m, tolerance={self._loiter_tolerance}m) - failing")
+                return False  # Failure
+
         
         # Calculate distance from loiter center
         center_position = np.array([
@@ -326,6 +341,7 @@ class LoiterActionFloatSam():
                 )
                 self._trigger_move_to_center()
                 self._last_reposition_trigger = self.now_time
+                
             
             # Continue loitering (don't end the action)
             return None
@@ -401,6 +417,7 @@ class LoiterActionFloatSam():
         speed_msg.header.stamp = self.now_stamp
         speed_msg.data = 0.0
         self._speed_reference_publisher.publish(speed_msg)
+        self._publish_captain_parametrs()
 
     def _give_feedback(self) -> str:
         """Provide feedback about loiter status (time remaining, like lolo)."""
@@ -464,6 +481,11 @@ def main(args=None):
     loiter_action = LoiterActionFloatSam(node)
     executor = MultiThreadedExecutor()
     rclpy.spin(node, executor=executor)
+    # Cancel active move_to goal if it exists
+    if loiter_action._move_to_goal_handle is not None:
+        loiter_action._node.get_logger().info("Cancelling active move_to goal...")
+        cancel_future = loiter_action._move_to_goal_handle.cancel_goal_async()
+        loiter_action._move_to_goal_handle = None
     node.destroy_node()
     rclpy.shutdown()
 

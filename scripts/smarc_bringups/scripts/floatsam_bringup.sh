@@ -53,6 +53,8 @@ tmux select-pane -t $SESSION:4.0
 tmux split-window -h -t $SESSION:4.0
 tmux select-pane -t $SESSION:4.1
 tmux split-window -v -t $SESSION:4.1
+tmux select-pane -t $SESSION:4.0
+tmux split-window -v -t $SESSION:4.0
 
 tmux select-pane -t $SESSION:4.0
 tmux send-keys "sleep 4; ros2 launch floatsam_move_to floatsam_move_to.launch.py robot_name:=$ROBOT_NAME" C-m
@@ -60,6 +62,9 @@ tmux select-pane -t $SESSION:4.1
 tmux send-keys "sleep 5; ros2 run floatsam_move_to floatsam_loiter_action_server --ros-args -r __ns:=/$ROBOT_NAME -p robot_name:=$ROBOT_NAME -p loiter_move_to_speed:=fast" C-m
 tmux select-pane -t $SESSION:4.2
 tmux send-keys "sleep 4; ros2 launch floatsam_move_to_path floatsam_move_to_path.launch.py" C-m
+tmux select-pane -t $SESSION:4.3
+tmux send-keys "sleep 5; ros2 launch floatsam_loiter_heading floatsam_loiter_heading.launch.py" C-m
+
 
 # --- Behavior tree (WASP BT) ---
 tmux new-window -t $SESSION:5 -n 'bt'
