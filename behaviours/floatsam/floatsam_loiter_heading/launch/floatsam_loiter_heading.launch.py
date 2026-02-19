@@ -26,9 +26,9 @@ def generate_launch_description():
             "yaw_d_gain": 0.1,  
             "yaw_threshold": 0.1,
             
-            "yawrate_p_gain": 300.0,
+            "yawrate_p_gain": 100.0, #300.0
             "yawrate_i_gain": 0.0,
-            "yawrate_d_gain": 30.0,  
+            "yawrate_d_gain": 30.0, # 30.0
             
             "velocity_p_gain": 500.0,
             "velocity_i_gain": 10.0,
