@@ -176,7 +176,7 @@ ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseActi
 ### Three robots — line abreast, facing east (90°)
 
 ```bash
-ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 57.7089, \"longitude\": 11.9450, \"heading\": 90.0}, {\"latitude\": 57.7090, \"longitude\": 11.9450, \"heading\": 90.0}, {\"latitude\": 57.7091, \"longitude\": 11.9450, \"heading\": 90.0}]}'}}"
+ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 58.8405258584503, \"longitude\": 17.6516992496307, \"heading\": 90.0}, {\"latitude\": 58.8405428888343, \"longitude\": 17.6518663726091, \"heading\": 90.0}, {\"latitude\": 58.8405878677775, \"longitude\": 17.6517617503888, \"heading\": 90.0}]}'}}"
 ```
 
 ### Three robots — wedge formation, facing north (0°)

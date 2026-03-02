@@ -28,19 +28,19 @@ def generate_launch_description():
 
     collision_radius_arg = DeclareLaunchArgument(
         'collision_radius',
-        default_value='4.0',
+        default_value='2.0',
         description='Minimum distance between robots to avoid collisions (in meters)'
     )
 
     max_num_collisions_arg = DeclareLaunchArgument(
         'max_num_collisions',
-        default_value='3',
+        default_value='4',
         description='Maximum number of collisions before giving up and aborting the action'
     )
 
     waypoints_step_size_arg = DeclareLaunchArgument(
         'waypoints_step_size',
-        default_value='10.0',
+        default_value='5.0',
         description='Distance between waypoints in the generated path (in meters)'
     )
 

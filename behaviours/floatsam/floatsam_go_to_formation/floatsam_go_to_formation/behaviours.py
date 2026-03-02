@@ -118,6 +118,10 @@ class CollisionFreeCheck(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("collision_radius", access=py_trees.common.Access.READ)
         self.blackboard.register_key("colliding_list", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("collision_streak", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key("currently_colliding_with", access=py_trees.common.Access.WRITE)
+
+        # Initialize the blackboard variable
+        self.blackboard.currently_colliding_with = ""
         self.this_robot_name = self.blackboard.this_robot_name
         self.collision_radius = self.blackboard.collision_radius
         self.collision_streak = {}
@@ -138,17 +142,28 @@ class CollisionFreeCheck(py_trees.behaviour.Behaviour):
     def update(self):
         """Check for collision risks between this robot and the others."""
     
+        if self.blackboard.currently_colliding_with != "":
+            return py_trees.common.Status.FAILURE
+
         robot_positions = self.blackboard.robot_positions
         self.this_position = robot_positions[self.this_robot_name]
         self.node.get_logger().info(f"{self.name}: Checking for collisions...")
 
         for key, position in robot_positions.items():
             if key != self.this_robot_name:
-                if self.compute_distance(self.this_position, position) < self.collision_radius:
-                    self.node.get_logger().info(f"{self.name}: Robot {self.this_robot_name} is colliding with {key}")
-                    self.blackboard.colliding_list.append(key)
+                distance = self.compute_distance(self.this_position, position)
+                # Check if actually colliding (within radius)
+                if distance <= self.collision_radius:
+                    # Only add to list if it's not the one we're already handling
+                    if self.blackboard.currently_colliding_with != key:
+                        self.node.get_logger().info(f"{self.name}: Robot {self.this_robot_name} is colliding with {key}")
+                        self.blackboard.colliding_list.append(key)
+                    else:
+                        self.node.get_logger().info(f"{self.name}: Already handling collision with {key}")
                 else:
-                    self.blackboard.collision_streak[key].is_colliding = False 
+                    # Not colliding, reset collision streak for this robot
+                    if key in self.blackboard.collision_streak:
+                        self.blackboard.collision_streak[key].is_colliding = False 
 
         if self.blackboard.colliding_list:
             self.node.get_logger().info(f"{self.this_robot_name} is colliding with: {self.blackboard.colliding_list}")
@@ -177,6 +192,11 @@ class PriorityCheck(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("collision_streak", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("formation_cluster_centre", access=py_trees.common.Access.READ)
         self.blackboard.register_key("approach_direction", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("robot_assignments", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("formation_points", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("last_point_tolerance_move_path", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("currently_colliding_with", access=py_trees.common.Access.READ)
+
         
         # signed projection distance along the approach line from formation centre
         self.fc = self.blackboard.formation_cluster_centre
@@ -191,6 +211,10 @@ class PriorityCheck(py_trees.behaviour.Behaviour):
         self.not_priority = False 
             
     def update(self):
+
+        if self.blackboard.currently_colliding_with != "":
+            return py_trees.common.Status.FAILURE
+
         self.node.get_logger().info(f"{self.name}: Checking priority...")
         self.colliding_list = self.blackboard.colliding_list
         self.theta = self.blackboard.approach_direction  # radians
@@ -210,16 +234,64 @@ class PriorityCheck(py_trees.behaviour.Behaviour):
                 if self.blackboard.collision_streak[robot].is_colliding == False: 
                    self.blackboard.collision_streak[robot].is_colliding = True 
                    self.blackboard.collision_streak[robot].counter += 1
+                   
+                # Check if the other robot has already reached its goal
+                # If so, force counter to 3 to trigger move_to_side
+                if self._has_robot_reached_goal(robot):
+                    self.node.get_logger().info(
+                        f"{self.this_robot_name}: {robot} has reached its goal, "
+                        f"forcing counter to 3 to avoid indefinite wait"
+                    )
+                    self.blackboard.collision_streak[robot].counter = np.inf
 
         if self.not_priority:
             return py_trees.common.Status.FAILURE
         self.node.get_logger().info(f"{self.name}: ORA RITORNO SUCCESSSSSO ")
         return py_trees.common.Status.SUCCESS
+    
+    def _has_robot_reached_goal(self, robot_name: str) -> bool:
+        """Check if the given robot has reached its assigned goal."""
+        try:
+            if not hasattr(self.blackboard, 'robot_assignments'):
+                return False
+            if not hasattr(self.blackboard, 'robot_positions'):
+                return False
+            if not hasattr(self.blackboard, 'formation_points'):
+                return False
+            if not hasattr(self.blackboard, 'last_point_tolerance_move_path'):
+                return False
+                
+            goal_key = self.blackboard.robot_assignments.get(robot_name)
+            if goal_key is None:
+                return False
+                
+            robot_pos = self.blackboard.robot_positions.get(robot_name)
+            goal_xy = self.blackboard.formation_points.get(goal_key)
+            
+            if robot_pos is None or goal_xy is None:
+                return False
+            
+            # Calculate distance to goal
+            dx = robot_pos.pose.position.x - goal_xy[0]
+            dy = robot_pos.pose.position.y - goal_xy[1]
+            dist = np.sqrt(dx * dx + dy * dy)
+            
+            # Use tolerance (same as in move_path)
+            tolerance = float(self.blackboard.last_point_tolerance_move_path) * 3.0
+            
+            return dist <= tolerance
+            
+        except Exception as e:
+            self.node.get_logger().warn(
+                f"{self.name}: Could not check if {robot_name} reached goal: {e}"
+            )
+            return False
             
     def calculate_proj_dist(self, this_position):
         rx, ry = this_position.pose.position.x, this_position.pose.position.y
         # signed projection distance along the approach line 
-        proj = np.abs((rx - self.fc[0]) * np.cos(self.theta) + (ry - self.fc[1]) * np.sin(self.theta))
+        #proj = np.abs((rx - self.fc[0]) * np.cos(self.theta) + (ry - self.fc[1]) * np.sin(self.theta))
+        proj = np.abs((ry - self.fc[1]) * np.sin(self.theta))
         return proj
     
     def priority(self, this_position, other_position):
@@ -240,6 +312,7 @@ class CounterCheck(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("this_robot_name", access=py_trees.common.Access.READ)
         self.blackboard.register_key("collision_streak", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("max_num_collisions", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("currently_colliding_with", access=py_trees.common.Access.WRITE)
 
     def setup(self, **kwargs):
         """Called once when the tree is created."""
@@ -247,11 +320,18 @@ class CounterCheck(py_trees.behaviour.Behaviour):
         self.node.get_logger().info(f"{self.name}: Setup complete.")
 
     def update(self):
+
+        if self.blackboard.currently_colliding_with != "":
+            return py_trees.common.Status.SUCCESS
+
         """Check counter value."""
         self.node.get_logger().info(f"{self.name}: Checking counter for collision avoidance...")
         for key in self.blackboard.collision_streak.keys():
-            if self.blackboard.collision_streak[key].counter > self.blackboard.max_num_collisions:
+            self.node.get_logger().info(f"{self.name}: Checking counter with {key} = {self.blackboard.collision_streak[key].counter}")
+
+            if self.blackboard.collision_streak[key].counter >= self.blackboard.max_num_collisions:
                 self.node.get_logger().info(f"{self.blackboard.this_robot_name} has reached the collision streak with {key}")
+                self.blackboard.currently_colliding_with = key
                 return py_trees.common.Status.SUCCESS
             
         return py_trees.common.Status.FAILURE
@@ -278,6 +358,7 @@ class MoveToSide(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("colliding_list", access=py_trees.common.Access.READ)
         self.blackboard.register_key("collision_streak", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("collision_radius", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("currently_colliding_with", access=py_trees.common.Access.WRITE)
 
         self._action_client = None
 
@@ -325,6 +406,8 @@ class MoveToSide(py_trees.behaviour.Behaviour):
                     dx_sum += other_pos.pose.position.x - rx
                     dy_sum += other_pos.pose.position.y - ry
 
+            
+
             if abs(dx_sum) < 1e-6 and abs(dy_sum) < 1e-6:
                 # Robots are on top of each other; pick an arbitrary direction
                 dx_sum, dy_sum = 1.0, 0.0
@@ -332,9 +415,9 @@ class MoveToSide(py_trees.behaviour.Behaviour):
             # Heading toward collision cluster
             heading_to_collision = np.arctan2(dy_sum, dx_sum)
 
-            # Two candidate evasion headings: ±90° from collision direction
-            left_heading = heading_to_collision + np.pi / 2
-            right_heading = heading_to_collision - np.pi / 2
+            # Two candidate evasion headings: ±45° from collision direction
+            left_heading = heading_to_collision + np.pi / 4
+            right_heading = heading_to_collision - np.pi / 4
 
             left_point = np.array([rx + self.EVASION_DISTANCE * np.cos(left_heading),
                                    ry + self.EVASION_DISTANCE * np.sin(left_heading)])
@@ -344,7 +427,7 @@ class MoveToSide(py_trees.behaviour.Behaviour):
             # Pick the side that is furthest from all other robots (least collision risk)
             evasion_point = self._pick_free_side(left_point, right_point)
 
-            # Convert evasion point to lat/lon for the move_to goal
+            # Convert evasion point to lat/lon ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 58.8405258584503, \"longitude\": 17.6516992496307, \"heading\": 90.0}, {\"latitude\": 58.8405428888343, \"longitude\": 17.6518663726091, \"heading\": 90.0}, {\"latitude\": 58.8405878677775, \"longitude\": 17.6517617503888, \"heading\": 90.0}]}'}}"for the move_to goal
             try:
                 gp = self._floatsam.convert_map_point_to_geopoint(float(evasion_point[0]),
                                                                    float(evasion_point[1]))
@@ -387,6 +470,7 @@ class MoveToSide(py_trees.behaviour.Behaviour):
         if self._goal_done:
             if self._goal_succeeded:
                 self.node.get_logger().info(f"{self.name}: Evasion move complete")
+                self.blackboard.currently_colliding_with = ""
                 # Reset collision streak counters for the robots we evaded
                 for other_name in self.blackboard.colliding_list:
                     if other_name in self.blackboard.collision_streak:
@@ -403,6 +487,7 @@ class MoveToSide(py_trees.behaviour.Behaviour):
     def terminate(self, new_status):
         """Cancel goal if the BT preempts this node."""
         if self._goal_handle is not None and not self._goal_done:
+            self.blackboard.currently_colliding_with = ""
             self._goal_handle.cancel_goal_async()
 
     # ── helpers ──────────────────────────────────────────────────────────────
@@ -447,6 +532,7 @@ class MoveToSide(py_trees.behaviour.Behaviour):
     def _result_cb(self, future):
         result = future.result().result
         self._goal_succeeded = result.success
+        self.blackboard.currently_colliding_with = ""
         self._goal_done = True
 
 
