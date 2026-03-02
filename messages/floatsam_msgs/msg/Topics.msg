@@ -7,6 +7,11 @@ string FLOATSAM_ABORT = 'abort'
 string YAW_SETPOINT = 'ctrl/yaw_setpoint'
 string VELOCITY_SETPOINT = 'ctrl/velocity_setpoint'
 
+# Real-time speed override (m/s) published by behaviours.py.
+# When this is being published it overrides the speed in the action goal.
+# The move_to_path action server subscribes to this topic.
+string SPEED_OVERRIDE = 'ctrl/speed_override'
+
 # Thruster commands. All Float32s (RPM).
 string THRUSTER_PORT_CMD = 'actuators/thruster_port_cmd'
 string THRUSTER_STRB_CMD = 'actuators/thruster_strb_cmd'
