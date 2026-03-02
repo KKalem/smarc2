@@ -169,6 +169,12 @@ class MoveToActionFloatSam():
                 self._node.get_logger().warning(f"No valid speed specified, using default: {e}")
                 self._goal_speed = 2.0
 
+            # constant_speed: when True, skip the linear deceleration ramp
+            # inside the speed_threshold circle and hold goal_speed all the
+            # way to the tolerance boundary.
+            self._constant_speed = bool(goal_request.get('constant_speed', False))
+            self._node.get_logger().info(f"Constant speed mode: {self._constant_speed}")
+
 
             pos = self._goal_in_map.pose.position
             
@@ -222,8 +228,8 @@ class MoveToActionFloatSam():
             self._node.get_logger().info(f"Reached goal within tolerance {self._goal_tolerance}m")
             return True
         
-        if self._distance_remaining <= self._default_speed_threshold:
-            # slow down when close to goal
+        if self._distance_remaining <= self._default_speed_threshold and not self._constant_speed:
+            # slow down when close to goal (unless constant_speed was requested)
             self._desired_speed = (self._distance_remaining / self._default_speed_threshold) * self._goal_speed
             self._node.get_logger().info(f"Slowing down, new speed: {self._desired_speed:.2f}")
         else:
@@ -281,17 +287,12 @@ class MoveToActionFloatSam():
 
 def main(args=None):
     rclpy.init(args=args)
-    
-    # Create a temporary node to read robot_name parameter
-    temp_node = Node("temp_param_reader")
-    temp_node.declare_parameter('robot_name', 'floatsam_usv')
-    robot_name = temp_node.get_parameter('robot_name').value
-    temp_node.destroy_node()
-    
-    # Create the actual node with proper namespace
-    node = Node("floatsam_move_to_action_server", namespace=robot_name)
-    node.declare_parameter('robot_name', robot_name)
-    
+
+    # Namespace and robot_name are set by the launch file via --ros-args.
+    # Declare robot_name here so the node can read its own scoped parameter.
+    node = Node("floatsam_move_to_action_server")
+    node.declare_parameter('robot_name', 'floatsam_usv')
+
     move_to_action = MoveToActionFloatSam(node)
     executor = MultiThreadedExecutor()
     rclpy.spin(node, executor=executor)

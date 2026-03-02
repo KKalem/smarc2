@@ -8,6 +8,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.action import ActionClient
 from rclpy.time import Time, Duration
 import traceback
+from tf_transformations import euler_from_quaternion
 
 from .floatsam_common import FloatSam
 
@@ -43,6 +44,7 @@ class LoiterActionFloatSam():
         self._loiter_tolerance = float(self._node.get_parameter('loiter_tolerance').value)
         self._reposition_tolerance = float(self._node.get_parameter('loiter_reposition_tolerance').value)
         self._loiter_move_to_speed = str(self._node.get_parameter('loiter_move_to_speed').value)
+        self._heading_tolerance = float(self._node.get_parameter('heading_tolerance').value)  # degrees
 
         # --- PID parameters and threshold for captain ---
         self._loiter_yaw_p_gain = float(self._node.get_parameter('yaw_p_gain').value)
@@ -69,12 +71,15 @@ class LoiterActionFloatSam():
         self._loiter_center_geopoint: GeoPoint | None = None  # Store original geopoint
         self._current_gps: GeoPoint | None = None  # Current GPS position from topic
         self._distance_from_center: float | None = None
+        self._current_heading_error: float | None = None  # Difference from target heading
         self._timeout: float | None = None  # seconds
         self._start_time: float | None = None  # timestamp when loiter started
         self._last_reposition_trigger: float = 0.0  # Prevent rapid retriggering
         self._move_to_goal_handle = None  # Track active move_to goal
         self._move_to_result_future = None  # Track move_to completion
-        self._move_to_pending = False 
+        self._move_to_pending = False
+        self._position_reached: bool = False  # Track if within tolerance
+        self._heading_reached: bool = False  # Track if heading is correct 
         
         # Subscribe to GPS topic to get current lat/lon position
         gps_topic = f"/{self._robot_name}/smarc/latlon"
@@ -140,6 +145,7 @@ class LoiterActionFloatSam():
         self._node.declare_parameter("loiter_tolerance", 5.0)
         self._node.declare_parameter("loiter_reposition_tolerance", 0.5)
         self._node.declare_parameter("loiter_move_to_speed", 'fast')
+        self._node.declare_parameter("heading_tolerance", 5.0)  # degrees
 
         self._node.declare_parameter("yaw_p_gain", 0.3)
         self._node.declare_parameter("yaw_i_gain", 0.0)
@@ -194,7 +200,7 @@ class LoiterActionFloatSam():
         try:
             # Parse timeout (only parameter from action goal - standardized convention)
             self._timeout = float(goal_request['duration'])
-            self.heading = float(goal_request["heading"]) 
+            self.heading = float(goal_request['heading']) 
             if self.heading < 0 or self.heading > 360:
                 self._node.get_logger().warning(f"ERROR: Bad input - the heading must be between 0 and 360 degrees")
             self.heading = (self.heading * np.pi)/180 
@@ -304,8 +310,8 @@ class LoiterActionFloatSam():
                 cancel_future = self._move_to_goal_handle.cancel_goal_async()
                 self._move_to_goal_handle = None
                 self._move_to_pending = False
-            # Timeout reached - check if within tolerance circle
-            if self._distance_from_center is not None and self._distance_from_center <= self._loiter_tolerance:
+            # Timeout reached - check if within tolerance circle with correct heading
+            if self._heading_reached and self._position_reached:
                 self._node.get_logger().info(f"Loiter timeout reached ({self._timeout}s) and within tolerance - completing successfully")
                 return True  # Success
             else:
@@ -326,10 +332,28 @@ class LoiterActionFloatSam():
         error_vector = center_position - current_position
         self._distance_from_center = float(np.linalg.norm(error_vector))
         
+        # Calculate current heading error
+        orientation = self._floatsam.floatsam_in_map.pose.orientation
+        _, _, current_yaw = euler_from_quaternion([
+            orientation.x, orientation.y, orientation.z, orientation.w
+        ])
+        
+        # Calculate heading error in radians, normalize to [-pi, pi]
+        heading_error_rad = self.heading - current_yaw
+        heading_error_rad = np.arctan2(np.sin(heading_error_rad), np.cos(heading_error_rad))
+        self._current_heading_error = np.degrees(abs(heading_error_rad))  # Convert to degrees
+        
+        # Update status flags
+        self._position_reached = self._distance_from_center <= self._loiter_tolerance
+        self._heading_reached = self._current_heading_error <= self._heading_tolerance
+        
         self._node.get_logger().info(
             f"Loitering: time remaining={time_remaining:.1f}s, "
             f"distance from center: {self._distance_from_center:.2f}m "
-            f"(tolerance: {self._loiter_tolerance}m)"
+            f"(tolerance: {self._loiter_tolerance}m), "
+            f"heading error: {self._current_heading_error:.1f}° "
+            f"(tolerance: {self._heading_tolerance}°), "
+            f"position_reached: {self._position_reached}, heading_reached: {self._heading_reached}"
         )
 
         
@@ -469,23 +493,28 @@ class LoiterActionFloatSam():
         if self._start_time is not None and self._timeout is not None:
             elapsed_time = self.now_time - self._start_time
             time_remaining = self._timeout - elapsed_time
-            return f"time_remaining: {time_remaining:.1f}s, distance: {self._distance_from_center:.2f}m"
+            
+            feedback_data = {
+                "time_remaining": round(time_remaining, 1),
+                "distance_from_center": round(self._distance_from_center, 2) if self._distance_from_center else 0.0,
+                "heading_error": round(self._current_heading_error, 1) if self._current_heading_error else 0.0,
+                "position_reached": self._position_reached,
+                "heading_reached": self._heading_reached,
+                "both_reached": self._position_reached and self._heading_reached
+            }
+            
+            return json.dumps(feedback_data)
         else:
-            return "Loiter not started"
+            return json.dumps({"status": "not_started"})
 
 def main(args=None):
     rclpy.init(args=args)
-    
-    # Create a temporary node to read robot_name parameter
-    temp_node = Node("temp_param_reader")
-    temp_node.declare_parameter('robot_name', 'floatsam_usv')
-    robot_name = temp_node.get_parameter('robot_name').value
-    temp_node.destroy_node()
-    
-    # Create the actual node with proper namespace
-    node = Node("floatsam_loiter_heading_action_server", namespace=robot_name)
-    node.declare_parameter('robot_name', robot_name)
-    
+
+    # Namespace and robot_name are set by the launch file via --ros-args.
+    # Declare robot_name here so the node can read its own scoped parameter.
+    node = Node("floatsam_loiter_heading_action_server")
+    node.declare_parameter('robot_name', 'floatsam_usv')
+
     loiter_action = LoiterActionFloatSam(node)
     executor = MultiThreadedExecutor()
     rclpy.spin(node, executor=executor)

@@ -39,18 +39,18 @@ class MoveToPathActionFloatSam():
         self.declare_node_parameters()
 
         # --- PID parameters and threshold for captain ---
-        self._loiter_yaw_p_gain = str(self._node.get_parameter('yaw_p_gain').value)
-        self._loiter_yaw_i_gain = str(self._node.get_parameter('yaw_i_gain').value)
-        self._loiter_yaw_d_gain = str(self._node.get_parameter('yaw_d_gain').value)
-        self._loiter_yaw_threshold = str(self._node.get_parameter('yaw_threshold').value)
+        self.yaw_p_gain = str(self._node.get_parameter('yaw_p_gain').value)
+        self.yaw_i_gain = str(self._node.get_parameter('yaw_i_gain').value)
+        self.yaw_d_gain = str(self._node.get_parameter('yaw_d_gain').value)
+        self.yaw_threshold = str(self._node.get_parameter('yaw_threshold').value)
 
-        self._loiter_yawrate_p_gain = str(self._node.get_parameter('yawrate_p_gain').value)
-        self._loiter_yawrate_i_gain = str(self._node.get_parameter('yawrate_i_gain').value)
-        self._loiter_yawrate_d_gain = str(self._node.get_parameter('yawrate_d_gain').value)
+        self.yawrate_p_gain = str(self._node.get_parameter('yawrate_p_gain').value)
+        self.yawrate_i_gain = str(self._node.get_parameter('yawrate_i_gain').value)
+        self.yawrate_d_gain = str(self._node.get_parameter('yawrate_d_gain').value)
 
-        self._loiter_velocity_p_gain = str(self._node.get_parameter('velocity_p_gain').value)
-        self._loiter_velocity_i_gain = str(self._node.get_parameter('velocity_i_gain').value)
-        self._loiter_velocity_d_gain = str(self._node.get_parameter('velocity_d_gain').value)
+        self.velocity_p_gain = str(self._node.get_parameter('velocity_p_gain').value)
+        self.velocity_i_gain = str(self._node.get_parameter('velocity_i_gain').value)
+        self.velocity_d_gain = str(self._node.get_parameter('velocity_d_gain').value)
         
         self.MAP_FRAME : str = self._robot_name + '/map'
         self._floatsam = FloatSam(node, self._robot_name)
@@ -58,7 +58,19 @@ class MoveToPathActionFloatSam():
         self._node.get_logger().info(f"FloatSam move_to server initialized for robot: {self._robot_name}")
 
         self._default_goal_tolerance = 1  
-        self._default_speed_threshold = 10  # start slowing down when within 10m of goal 
+        self._default_speed_threshold = 5  # start slowing down when within 5m of goal
+        self._decelerating : bool = False
+        self._desired_speed : float = 0.0
+
+        # Real-time speed override: behaviours.py publishes here (FloatStamped, m/s).
+        # When messages arrive the value replaces the speed from the action goal.
+        self._speed_override : float | None = None
+        self._node.create_subscription(
+            FloatStamped,
+            FloatsamTopics.SPEED_OVERRIDE,
+            self._speed_override_cb,
+            10
+        )
 
         # Publishers use FloatsamTopics constants (relative paths get robot namespace)
         self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.YAW_SETPOINT, 10)
@@ -89,6 +101,24 @@ class MoveToPathActionFloatSam():
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
 
         self.index=0
+
+    def _speed_override_cb(self, msg: FloatStamped) -> None:
+        """Store the real-time speed published by behaviours.py.
+        This overrides the speed that was sent in the action goal."""
+        self._speed_override = float(msg.data)
+
+    @property
+    def effective_goal_speed(self) -> float:
+        """The speed to use for this tick.
+        Priority: real-time override topic > goal speed value > 2.0 m/s default.
+        When the goal speed was set to 'override', only the topic value is used."""
+        if self._speed_override is not None:
+            return self._speed_override
+        if self._goal_speed is not None:
+            return self._goal_speed
+        # 'override' mode but topic not yet publishing — hold a safe minimum
+        self._node.get_logger().warn("Speed override requested but no topic value received yet, holding 0.0")
+        return 0.0
 
     @property
     def now_stamp(self):
@@ -128,11 +158,15 @@ class MoveToPathActionFloatSam():
             try:
                 self._goal_speed = goal_request.get('speed', 2.0)
                 if self._goal_speed == "standard":
-                    self._goal_speed = 2.0  
+                    self._goal_speed = 2.0
                 elif self._goal_speed == "slow":
-                    self._goal_speed = 1.0  
+                    self._goal_speed = 1.0
                 elif self._goal_speed == "fast":
-                    self._goal_speed = 5.0 
+                    self._goal_speed = 5.0
+                elif self._goal_speed == "override":
+                    # Speed will come exclusively from the SPEED_OVERRIDE topic at runtime.
+                    self._goal_speed = None
+                    self._node.get_logger().info("Speed mode: override (using real-time topic value)")
                 else:
                     self._goal_speed = float(self._goal_speed)
             except:
@@ -148,6 +182,11 @@ class MoveToPathActionFloatSam():
             # Se per caso arriva un singolo dizionario invece di una lista, mettilo in una lista
             if not isinstance(waypoints, list):
                 waypoints = [waypoints]
+
+            # constant_speed: when True, skip the linear deceleration ramp on
+            # the LAST waypoint and hold goal_speed all the way to tolerance.
+            self._constant_speed = bool(goal_request.get('constant_speed', False))
+            self._node.get_logger().info(f"Constant speed mode: {self._constant_speed}")
 
             for i in range(len(waypoints)):
                 self._node.get_logger().info(f"waypoint {i}: {waypoints[i]}")
@@ -181,6 +220,8 @@ class MoveToPathActionFloatSam():
 
     def _prepare_loop(self) -> None:
         self._distance_remaining = None
+        self._desired_speed = 0.0
+        self._decelerating = False
         self.index = 0
         return
 
@@ -193,7 +234,6 @@ class MoveToPathActionFloatSam():
             self._node.get_logger().info("No floatsam position available yet, waiting...")
             return None
         
-        # --- QUI HO TOLTO IL FOR LOOP ---
         # Controlliamo se abbiamo finito i waypoint
         if self.index >= len(self._goal_in_map):
             self._node.get_logger().info("All waypoints reached! SUCCESS.")
@@ -225,13 +265,13 @@ class MoveToPathActionFloatSam():
         # LOGICA VELOCITA (Rallenta solo se è l'ultimo waypoint della lista)
         is_last_waypoint = (i == len(self._goal_in_map) - 1)
 
-        if (self._distance_remaining <= self._default_speed_threshold) and is_last_waypoint:
-            # slow down when close to FINAL goal
-            self._desired_speed = (self._distance_remaining / self._default_speed_threshold) * self._goal_speed
-            self._desired_speed = max(0.2, self._desired_speed) # Safety clamp
-            # self._node.get_logger().info(f"Slowing down, new speed: {self._desired_speed:.2f}")
+        if (self._distance_remaining <= self._default_speed_threshold) and is_last_waypoint and not self._constant_speed:
+            # slow down when close to FINAL goal (unless constant_speed was requested)
+            self._desired_speed = (self._distance_remaining / self._default_speed_threshold) * self.effective_goal_speed
+            self._decelerating = True
         else:
-            self._desired_speed = self._goal_speed
+            self._desired_speed = self.effective_goal_speed
+            self._decelerating = False
     
         # self._node.get_logger().info(f"The desired speed is {self._desired_speed:.2f} m/s")
         
@@ -256,16 +296,26 @@ class MoveToPathActionFloatSam():
 
     def _give_feedback(self) -> str:
         if self._distance_remaining is not None and self._goal_in_map:
-            # Usa self.index, ma attento a non andare fuori range se l'azione è finita
-            safe_index = min(self.index, len(self._goal_in_map)-1)
-            return f"WP {safe_index+1}/{len(self._goal_in_map)} - Dist: {self._distance_remaining:.2f} (tol: {self._goal_tolerance[safe_index]:.2f}m)"
+            safe_index = min(self.index, len(self._goal_in_map) - 1)
+            feedback = {
+                "wp_index": safe_index + 1,
+                "wp_total": len(self._goal_in_map),
+                "distance_remaining": round(self._distance_remaining, 3),
+                "tolerance": round(self._goal_tolerance[safe_index], 3),
+                "desired_speed": round(self._desired_speed, 3),
+                "decelerating": self._decelerating,
+            }
         else:
-            return "No distance remaining info"
+            feedback = {
+                "decelerating": False,
+                "desired_speed": 0.0,
+            }
+        return json.dumps(feedback)
         
     def declare_node_parameters(self) -> None:
-        self._node.declare_parameter("loiter_tolerance", 5.0)
-        self._node.declare_parameter("loiter_reposition_tolerance", 0.5)
-        self._node.declare_parameter("loiter_move_to_speed", 'fast')
+        self._node.declare_parameter("_tolerance", 5.0)
+        self._node.declare_parameter("reposition_tolerance", 0.5)
+        self._node.declare_parameter("move_to_speed", 'fast')
 
         self._node.declare_parameter("yaw_p_gain", 0.3)
         self._node.declare_parameter("yaw_i_gain", 0.0)
@@ -283,16 +333,16 @@ class MoveToPathActionFloatSam():
     def _publish_captain_parametrs(self):
         """It publish the message containing the parameters for captain node"""
         parameters = {
-            "yaw_p_gain" : self._loiter_yaw_p_gain,
-            "yaw_i_gain" : self._loiter_yaw_i_gain,
-            "yaw_d_gain" : self._loiter_yaw_d_gain,
-            "yaw_threshold" : self._loiter_yaw_threshold,
-            "yawrate_p_gain" : self._loiter_yawrate_p_gain,
-            "yawrate_i_gain" : self._loiter_yawrate_i_gain,
-            "yawrate_d_gain" : self._loiter_yaw_d_gain,
-            "velocity_p_gain" : self._loiter_velocity_p_gain, 
-            "velocity_i_gain" : self._loiter_velocity_i_gain, 
-            "velocity_d_gain" : self._loiter_velocity_d_gain
+            "yaw_p_gain" : self.yaw_p_gain,
+            "yaw_i_gain" : self.yaw_i_gain,
+            "yaw_d_gain" : self.yaw_d_gain,
+            "yaw_threshold" : self.yaw_threshold,
+            "yawrate_p_gain" : self.yawrate_p_gain,
+            "yawrate_i_gain" : self.yawrate_i_gain,
+            "yawrate_d_gain" : self.yaw_d_gain,
+            "velocity_p_gain" : self.velocity_p_gain, 
+            "velocity_i_gain" : self.velocity_i_gain, 
+            "velocity_d_gain" : self.velocity_d_gain
         }
         msg = String()
         msg.data = json.dumps(parameters)
@@ -301,16 +351,10 @@ class MoveToPathActionFloatSam():
 
 def main(args=None):
     rclpy.init(args=args)
-    
-    # Create a temporary node to read robot_name parameter
-    temp_node = Node("temp_param_reader")
-    temp_node.declare_parameter('robot_name', 'floatsam_usv')
-    robot_name = temp_node.get_parameter('robot_name').value
-    temp_node.destroy_node()
-    
-    node = Node("floatsam_move_to_path_action_server", namespace=robot_name)
-    node.declare_parameter('robot_name', robot_name)
-    
+
+    node = Node("floatsam_move_to_path_action_server")
+    node.declare_parameter('robot_name', 'floatsam_usv')
+
     move_to_path_action = MoveToPathActionFloatSam(node)
     executor = MultiThreadedExecutor()
     rclpy.spin(node, executor=executor)

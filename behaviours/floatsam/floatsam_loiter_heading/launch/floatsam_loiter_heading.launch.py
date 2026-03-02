@@ -17,14 +17,15 @@ def generate_launch_description():
         namespace=robot_name,
         parameters=[{
             "robot_name": robot_name,
-            "loiter_tolerance" : 5.0,
+            "loiter_tolerance" : 5.0,               # meters
+            "heading_tolerance": 6.0,               # degrees 
             "loiter_reposition_tolerance": 0.5,
             "loiter_move_to_speed": 'fast',
 
             "yaw_p_gain": 0.3,
             "yaw_i_gain": 0.0,
             "yaw_d_gain": 0.1,  
-            "yaw_threshold": 0.1,
+            "yaw_threshold": 0.1,                   # in radians for captain's PIDs (yaw_threshold must be < heading_tolerance)
             
             "yawrate_p_gain": 100.0, #300.0
             "yawrate_i_gain": 0.0,

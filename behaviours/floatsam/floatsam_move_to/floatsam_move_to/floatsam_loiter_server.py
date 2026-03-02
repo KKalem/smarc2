@@ -467,17 +467,12 @@ class LoiterActionFloatSam():
 
 def main(args=None):
     rclpy.init(args=args)
-    
-    # Create a temporary node to read robot_name parameter
-    temp_node = Node("temp_param_reader")
-    temp_node.declare_parameter('robot_name', 'floatsam_usv')
-    robot_name = temp_node.get_parameter('robot_name').value
-    temp_node.destroy_node()
-    
-    # Create the actual node with proper namespace
-    node = Node("floatsam_loiter_action_server", namespace=robot_name)
-    node.declare_parameter('robot_name', robot_name)
-    
+
+    # Namespace and robot_name are set by the launch file via --ros-args.
+    # Declare robot_name here so the node can read its own scoped parameter.
+    node = Node("floatsam_loiter_action_server")
+    node.declare_parameter('robot_name', 'floatsam_usv')
+
     loiter_action = LoiterActionFloatSam(node)
     executor = MultiThreadedExecutor()
     rclpy.spin(node, executor=executor)

@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'captain = floatsam_controllers.captain:main',
+            'rvo_service_node = floatsam_controllers.rvo_service:main',
         ],
     },
 )
