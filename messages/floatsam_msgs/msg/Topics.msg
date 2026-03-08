@@ -19,3 +19,6 @@ string THRUSTER_STRB_CMD = 'actuators/thruster_strb_cmd'
 # Thruster feedback. All Float32s (RPM).
 string THRUSTER_PORT_FB = 'actuators/thruster_port_fb'
 string THRUSTER_STRB_FB = 'actuators/thruster_strb_fb'
+
+#Loiter with Heading feedback
+string LOITER_HEADING_FB = 'loiter_heading_fb'
