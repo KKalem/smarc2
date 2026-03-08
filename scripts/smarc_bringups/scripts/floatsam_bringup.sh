@@ -53,6 +53,8 @@ tmux split-window -v -t $SESSION:3.0
 tmux select-layout -t $SESSION:3 tiled
 tmux select-pane -t $SESSION:3.0
 tmux send-keys "sleep 2; ros2 launch floatsam_controllers floatsam_controllers_launch.py robot_name:=$ROBOT_NAME" C-m
+tmux select-pane -t $SESSION:3.1
+tmux send-keys "sleep 3; ros2 run floatsam_controllers rvo_service_node --ros-args -r __ns:=/$ROBOT_NAME -p robot_name:=$ROBOT_NAME -p time_horizon:=2.0 -p safety_margin:=5.0 -p max_speed:=3.0 -p update_rate:=20.0 -p num_robot:=3" C-m
 
 # --- Servers / action servers ---
 tmux new-window -t $SESSION:4 -n 'servers'
@@ -80,17 +82,23 @@ tmux select-pane -t $SESSION:5.0
 tmux send-keys "sleep 4; ros2 launch floatsam_go_to_formation floatsam_go_to_formation.launch.py robot_name:=$ROBOT_NAME" C-m
 
 
+# --- Go_to_formation ---
+tmux new-window -t $SESSION:6 -n 'go_to_formation_rvo'
+tmux select-window -t $SESSION:6
+tmux select-pane -t $SESSION:6.0
+tmux send-keys "sleep 4; ros2 launch floatsam_go_to_formation_rvo floatsam_go_to_formation_rvo.launch.py robot_name:=$ROBOT_NAME" C-m
+
 
 # --- Behavior tree (WASP BT) ---
-tmux new-window -t $SESSION:6 -n 'bt'
-tmux select-window -t $SESSION:6
+tmux new-window -t $SESSION:7 -n 'bt'
+tmux select-window -t $SESSION:7
 tmux send-keys "sleep 2; ros2 launch wasp_bt wasp_bt.launch robot_name:=$ROBOT_NAME agent_type:=$AGENT_TYPE pulse_rate:=$PULSE_RATE use_sim_time:=$USE_SIM_TIME bt_log_mode:=$BT_LOG_MODE" C-m
 
 
 # Logging window.
-tmux new-window -t $SESSION:7 -n 'logging'
-tmux select-window -t $SESSION:7
+tmux new-window -t $SESSION:8 -n 'logging'
+tmux select-window -t $SESSION:8
 
 # Set default window and attach
-tmux select-window -t $SESSION:0
+tmux select-window -t $SESSION:6
 tmux -2 attach-session -t $SESSION
