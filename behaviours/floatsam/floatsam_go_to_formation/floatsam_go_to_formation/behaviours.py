@@ -7,6 +7,7 @@ from smarc_msgs.action import BaseAction
 from smarc_msgs.msg import FloatStamped
 from floatsam_msgs.msg import Topics as FloatsamTopics
 from geographic_msgs.msg import GeoPoint
+from std_msgs.msg import String
 
 
 class CollisionPlaceholder():
@@ -359,6 +360,8 @@ class MoveToSide(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("collision_streak", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("collision_radius", access=py_trees.common.Access.READ)
         self.blackboard.register_key("currently_colliding_with", access=py_trees.common.Access.WRITE)
+        self.blackboard.register_key("formation_cluster_centre", access=py_trees.common.Access.READ)
+
 
         self._action_client = None
 
@@ -398,39 +401,59 @@ class MoveToSide(py_trees.behaviour.Behaviour):
                 self.node.get_logger().warn(f"{self.name}: No colliding robots")
                 return py_trees.common.Status.FAILURE
 
-            # Average direction toward all colliding robots
-            dx_sum, dy_sum = 0.0, 0.0
-            for other_name in colliding_list:
-                other_pos = self.blackboard.robot_positions.get(other_name)
-                if other_pos is not None:
-                    dx_sum += other_pos.pose.position.x - rx
-                    dy_sum += other_pos.pose.position.y - ry
+            # # Average direction toward all colliding robots
+            # dx_sum, dy_sum = 0.0, 0.0
+            # for other_name in colliding_list:
+            #     other_pos = self.blackboard.robot_positions.get(other_name)
+            #     if other_pos is not None:
+            #         dx_sum += other_pos.pose.position.x - rx
+            #         dy_sum += other_pos.pose.position.y - ry
 
             
 
-            if abs(dx_sum) < 1e-6 and abs(dy_sum) < 1e-6:
-                # Robots are on top of each other; pick an arbitrary direction
-                dx_sum, dy_sum = 1.0, 0.0
+            # if abs(dx_sum) < 1e-6 and abs(dy_sum) < 1e-6:
+            #     # Robots are on top of each other; pick an arbitrary direction
+            #     dx_sum, dy_sum = 1.0, 0.0
 
             # Heading toward collision cluster
+
+
+            other_pos = self.blackboard.robot_positions.get(self.blackboard.currently_colliding_with)
+
+            dx_sum = other_pos.pose.position.x - rx
+            dy_sum = other_pos.pose.position.y - ry
+
             heading_to_collision = np.arctan2(dy_sum, dx_sum)
 
-            # Two candidate evasion headings: ±45° from collision direction
-            left_heading = heading_to_collision + np.pi / 4
-            right_heading = heading_to_collision - np.pi / 4
+            proj_me = np.abs((rx - self.blackboard.formation_cluster_centre[0]) * np.cos(self.theta))
+            proj_other = np.abs((other_pos.pose.position.x - self.blackboard.formation_cluster_centre[0]) * np.cos(self.theta))
 
-            left_point = np.array([rx + self.EVASION_DISTANCE * np.cos(left_heading),
+            if proj_me <= proj_other:
+                left_heading = heading_to_collision + np.pi / 4
+                evasion_point = np.array([rx + self.EVASION_DISTANCE * np.cos(left_heading),
                                    ry + self.EVASION_DISTANCE * np.sin(left_heading)])
-            right_point = np.array([rx + self.EVASION_DISTANCE * np.cos(right_heading),
+            else:
+                right_heading = heading_to_collision - np.pi / 4
+                evasion_point = np.array([rx + self.EVASION_DISTANCE * np.cos(right_heading),
                                     ry + self.EVASION_DISTANCE * np.sin(right_heading)])
 
-            # Pick the side that is furthest from all other robots (least collision risk)
-            evasion_point = self._pick_free_side(left_point, right_point)
+            # Two candidate evasion headings: ±45° from collision direction
+            # left_heading = heading_to_collision + np.pi / 4
+            # right_heading = heading_to_collision - np.pi / 4
+
+            # left_point = np.array([rx + self.EVASION_DISTANCE * np.cos(left_heading),
+            #                        ry + self.EVASION_DISTANCE * np.sin(left_heading)])
+            # right_point = np.array([rx + self.EVASION_DISTANCE * np.cos(right_heading),
+            #                         ry + self.EVASION_DISTANCE * np.sin(right_heading)])
+
+            # # Pick the side that is furthest from all other robots (least collision risk)
+            # evasion_point = self._pick_free_side(left_point, right_point)
 
             # Convert evasion point to lat/lon ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 58.8405258584503, \"longitude\": 17.6516992496307, \"heading\": 90.0}, {\"latitude\": 58.8405428888343, \"longitude\": 17.6518663726091, \"heading\": 90.0}, {\"latitude\": 58.8405878677775, \"longitude\": 17.6517617503888, \"heading\": 90.0}]}'}}"for the move_to goal
             try:
                 gp = self._floatsam.convert_map_point_to_geopoint(float(evasion_point[0]),
                                                                    float(evasion_point[1]))
+                
             except Exception as e:
                 self.node.get_logger().error(f"{self.name}: Failed to convert evasion point to geopoint: {e}")
                 return py_trees.common.Status.FAILURE
@@ -882,6 +905,7 @@ class AllArrivalCheck(py_trees.behaviour.Behaviour):
         self.blackboard = self.attach_blackboard_client(name=self.name)
         self.blackboard.register_key("robot_positions", access=py_trees.common.Access.READ)
         self.blackboard.register_key("robot_assignments", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("loiter_heading_fb", access=py_trees.common.Access.READ)
 
     def setup(self, **kwargs):
         """Called once when the tree is created."""
@@ -893,83 +917,164 @@ class AllArrivalCheck(py_trees.behaviour.Behaviour):
         # TODO: Implement logic to check all agents' arrival status
         # Read robot_positions and robot_assignments
         # Check if ALL robots are at their assigned targets
-        self.node.get_logger().info(f"{self.name}: Checking if all agents arrived...")
-        return py_trees.common.Status.RUNNING
+
+        all_arrived_flag = False
+        for robot_name, ready in self.blackboard.loiter_heading_fb.items():
+            self.node.get_logger().info(f"{self.name}: Loiter feedback for {robot_name} = {ready}")
+            if ready == 0:
+                all_arrived_flag = False
+                break
+            elif ready == 1:
+                all_arrived_flag = True
+
+
+        if all_arrived_flag:
+            self.node.get_logger().info(f"{self.name}: All robots have arrived at their targets!")
+            return py_trees.common.Status.SUCCESS   
+        else: 
+            self.node.get_logger().info(f"{self.name}: NOT all robots have arrived at their targets yet!")
+            return py_trees.common.Status.FAILURE  
 
 
 class LoiterWithHeadingClient(py_trees.behaviour.Behaviour):
-    """Action client to call loiter_with_heading action server."""
+    """Action client to call loiter_with_heading action server.
+    
+    Loiters at the current position with a specified heading for a given duration.
+    Duration: 400 seconds
+    Heading: extracted from the formation goal assigned to this robot
+    """
     
     def __init__(self, name="LoiterWithHeadingClient"):
         super().__init__(name)
         self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key("this_robot_name", access=py_trees.common.Access.READ)
         self.blackboard.register_key("robot_assignments", access=py_trees.common.Access.READ)
+        self.blackboard.register_key("formation_points_latlon", access=py_trees.common.Access.READ)
+        self._action_client = None
 
     def setup(self, **kwargs):
         """Called once when the tree is created. Initialize action client."""
         self.node = kwargs['node']
-        # TODO: Initialize ROS action client for loiter_with_heading
+        # Initialize ROS action client for loiter_with_heading
+        self._action_client = ActionClient(self.node, BaseAction, 'loiter_heading')
         self.node.get_logger().info(f"{self.name}: Setup complete.")
 
+    def initialise(self):
+        """Reset state each time the BT enters this behaviour from a non-RUNNING state."""
+        self._send_goal_future = None
+        self._get_result_future = None
+        self._goal_handle = None
+        self._goal_accepted = False
+        self._goal_done = False
+        self._goal_succeeded = False
+
     def update(self):
-        """Send goal to loiter_with_heading action server."""
-        # TODO: Implement action client logic
-        # Read robot_assignments to get target heading for each robot
-        self.node.get_logger().info(f"{self.name}: Calling loiter_with_heading action...")
+        """Send goal to loiter_with_heading action server and manage action lifecycle."""
+        self.node.get_logger().info(f"{self.name}: Update begin")
+        
+        # ── 1. Send goal (first tick) ────────────────────────────────────────────
+        if self._send_goal_future is None:
+            my_name = self.blackboard.this_robot_name
+            assignments = self.blackboard.robot_assignments
+            
+            if my_name not in assignments:
+                self.node.get_logger().warn(f"{self.name}: No assignment for {my_name}")
+                return py_trees.common.Status.FAILURE
+            
+            my_goal_key = assignments[my_name]
+            
+            # Get the heading from the formation goal
+            formation_points_latlon = self.blackboard.formation_points_latlon
+            if my_goal_key not in formation_points_latlon:
+                self.node.get_logger().warn(f"{self.name}: No formation point data for {my_goal_key}")
+                return py_trees.common.Status.FAILURE
+            
+            goal_data = formation_points_latlon[my_goal_key]
+            heading = goal_data.get('heading', 0.0)
+            
+            if not self._action_client.wait_for_server(timeout_sec=2.0):
+                self.node.get_logger().warn(f"{self.name}: loiter_heading action server not available")
+                return py_trees.common.Status.FAILURE
+            
+            # Create goal message with duration=400 and heading from formation goal
+            goal_dict = {
+                'duration': 400,  # 400 seconds
+                'heading': heading
+            }
+            goal_msg = BaseAction.Goal()
+            goal_msg.goal.data = json.dumps(goal_dict)
+            
+            self._send_goal_future = self._action_client.send_goal_async(
+                goal_msg,
+                feedback_callback=self._feedback_cb
+            )
+            self._send_goal_future.add_done_callback(self._goal_response_cb)
+            self.node.get_logger().info(
+                f"{self.name}: Goal sent to loiter_heading "
+                f"(duration=400s, heading={heading}°)"
+            )
+            return py_trees.common.Status.RUNNING
+        
+        # ── 2. Waiting for server to accept the goal ─────────────────────────────
+        if not self._goal_accepted:
+            self.node.get_logger().info(f"{self.name}: Waiting for goal acceptance...")
+            if self._goal_done:  # rejected
+                self.node.get_logger().info(f"{self.name}: Goal was rejected by the server")
+                return py_trees.common.Status.FAILURE
+            return py_trees.common.Status.RUNNING
+        
+        # ── 3. Goal finished ─────────────────────────────────────────────────────
+        if self._goal_done:
+            self.node.get_logger().info(
+                f"{self.name}: Goal finished with status: "
+                f"{'SUCCEEDED' if self._goal_succeeded else 'FAILED'}"
+            )
+            return (
+                py_trees.common.Status.SUCCESS
+                if self._goal_succeeded
+                else py_trees.common.Status.FAILURE
+            )
+        
+        # ── 4. Still running ─────────────────────────────────────────────────────
         return py_trees.common.Status.RUNNING
 
+    def terminate(self, new_status):
+        """Cancel the goal if the BT aborts this behaviour while it is running."""
+        self.node.get_logger().info(f"{self.name}: Terminate called with new_status={new_status}")
+        if self._goal_handle is not None and not self._goal_done:
+            self._goal_handle.cancel_goal_async()
 
-    """
-    # to be put inside the class of the node that calls loiter with heading 
-    # (to check at the end if each vessel is correctly positioned and oriented)
+    # ── Callbacks ────────────────────────────────────────────────────────────────
 
+    def _feedback_cb(self, feedback_msg):
+        """Parse JSON feedback from the loiter action server."""
+        try:
+            feedback_str = feedback_msg.feedback.feedback.data
+            feedback = json.loads(feedback_str)
+            self.node.get_logger().info(
+                f"{self.name}: Feedback - Position reached: {feedback.get('position_reached', False)}, "
+                f"Heading reached: {feedback.get('heading_reached', False)}, "
+                f"Distance: {feedback.get('distance_from_center', 0.0):.2f}m, "
+                f"Heading error: {feedback.get('heading_error', 0.0):.1f}°"
+            )
+        except Exception as e:
+            self.node.get_logger().warn(f"{self.name}: Failed to parse feedback: {e}")
 
-    def send_goal(self, duration, heading):
-        goal_msg = BaseAction.Goal()
-        goal_dict = {
-            'duration': duration,
-            'heading': heading
-        }
-        goal_msg.goal = String(data=json.dumps(goal_dict))
-        
-        self._action_client.wait_for_server()
-        
-        self._send_goal_future = self._action_client.send_goal_async(
-            goal_msg,
-            feedback_callback=self.feedback_callback  # Handle feedback here
-        )
-        
-        self._send_goal_future.add_done_callback(self.goal_response_callback)
-    
-
-    def feedback_callback(self, feedback_msg):
-        # Called whenever feedback is received"
-        feedback_str = feedback_msg.feedback.feedback.data
-        feedback = json.loads(feedback_str)
-        
-        self.get_logger().info(
-            f"Feedback: Position reached: {feedback['position_reached']}, "
-            f"Heading reached: {feedback['heading_reached']}, "
-            f"Distance: {feedback['distance_from_center']:.2f}m, "
-            f"Heading error: {feedback['heading_error']:.1f}°"
-        )
-        
-        # Check if both are achieved
-        if feedback['both_reached']:
-            self.get_logger().info("✓ Both position and heading reached!")
-    
-            
-     def goal_response_callback(self, future):
+    def _goal_response_cb(self, future):
+        """Handle goal response from action server."""
         goal_handle = future.result()
         if not goal_handle.accepted:
-            self.get_logger().error('Goal rejected')
+            self.node.get_logger().error(f"{self.name}: Goal rejected by loiter_heading server")
+            self._goal_done = True
             return
-        
+        self._goal_handle = goal_handle
+        self._goal_accepted = True
         self._get_result_future = goal_handle.get_result_async()
-        self._get_result_future.add_done_callback(self.result_callback)
-    
-    def result_callback(self, future):
-        result = future.result().result
-        self.get_logger().info(f'Result: {result.result.data}')
+        self._get_result_future.add_done_callback(self._result_cb)
 
-    """
+    def _result_cb(self, future):
+        """Handle final result from action server."""
+        self.node.get_logger().info(f"{self.name}: Goal result received")
+        result = future.result().result
+        self._goal_succeeded = result.success
+        self._goal_done = True

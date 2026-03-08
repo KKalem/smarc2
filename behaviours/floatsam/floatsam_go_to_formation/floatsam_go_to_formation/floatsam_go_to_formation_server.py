@@ -13,6 +13,7 @@ import py_trees_ros
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from geographic_msgs.msg import GeoPoint
+from smarc_msgs.msg import FloatStamped
 from tf2_geometry_msgs import do_transform_pose_stamped
 from .behaviours import (
     HaveGoal,
@@ -73,7 +74,9 @@ class BTActionServer(Node):
         
         # Subscribe to odometry for each robot
         self._odom_subscribers = {}
+        self._loiter_subscribers = {}
         self._setup_odometry_subscriptions()
+        self._setup_loiter_subscriptions()
 
         self._as = GentlerActionServer(
             self,
@@ -88,6 +91,40 @@ class BTActionServer(Node):
 
         # Tree will be created in _prepare_loop
         self.tree = None
+
+    def _setup_loiter_subscriptions(self):
+        """Subscribe to loiter heading feedback topic for each robot."""
+        for robot_id in self.robot_ids:
+            # Topic format: /<robot_base_name>_X/loiter_heading_fb
+            loiter_topic = f'/{self.robot_base_name}_{robot_id}/loiter_heading_fb'
+            
+            # Create subscription with a lambda that captures robot_id
+            subscriber = self.create_subscription(
+                FloatStamped,
+                loiter_topic,
+                lambda msg, rid=robot_id: self._loiter_callback(msg, rid),
+                10
+            )
+            
+            self._loiter_subscribers[robot_id] = subscriber
+            self.get_logger().info(f'Subscribed to {loiter_topic}')
+    
+    def _loiter_callback(self, msg: FloatStamped, robot_id: int):
+        """Update loiter heading feedback in blackboard when received.
+        
+        The loiter_heading_fb value is either 1.0 (heading to loiter point)
+        or 0.0 (not heading to loiter point). This is stored in the blackboard
+        keyed by robot name, similar to robot positions.
+        """
+        # Update blackboard
+        blackboard = py_trees.blackboard.Client(name="Server")
+        blackboard.register_key(key="loiter_heading_fb", access=py_trees.common.Access.WRITE)
+        
+        # Update the specific robot's loiter heading feedback value, keyed by full name (e.g. floatsam_usv_0)
+        loiter_fb = blackboard.loiter_heading_fb
+        loiter_fb[f'{self.robot_base_name}_{robot_id}'] = msg.data
+        blackboard.loiter_heading_fb = loiter_fb
+
 
     def _setup_blackboard(self):
         """Initialize blackboard with robot positions and assignments dictionaries."""
@@ -107,6 +144,7 @@ class BTActionServer(Node):
         blackboard.register_key(key="max_velocity", access=py_trees.common.Access.WRITE)
         blackboard.register_key(key="formation_points_latlon", access=py_trees.common.Access.WRITE)
         blackboard.register_key(key="last_point_tolerance_move_path", access=py_trees.common.Access.WRITE)
+        blackboard.register_key(key="loiter_heading_fb", access=py_trees.common.Access.WRITE)
         
         # Initialize empty dictionaries
         blackboard.robot_positions = {}
@@ -124,10 +162,12 @@ class BTActionServer(Node):
         blackboard.max_velocity = self.max_velocity
         blackboard.formation_points_latlon = {}
         blackboard.last_point_tolerance_move_path = self.last_point_tolerance_move_path
+        blackboard.loiter_heading_fb = {}
         
         # Initialize positions to None for each robot, keyed by full name (e.g. floatsam_usv_0)
         for robot_id in self.robot_ids:
             blackboard.robot_positions[f'{self.robot_base_name}_{robot_id}'] = None
+            blackboard.loiter_heading_fb[f'{self.robot_base_name}_{robot_id}'] = None
         
         self.get_logger().info('Blackboard initialized with robot_positions and robot_assignments')
 
@@ -326,7 +366,8 @@ class BTActionServer(Node):
                 new_formation_points[f'goal_{i}'] = pt
                 new_formation_points_latlon[f'goal_{i}'] = {
                     'latitude': float(formation_points[i]['latitude']),
-                    'longitude': float(formation_points[i]['longitude'])
+                    'longitude': float(formation_points[i]['longitude']),
+                    'heading': float(formation_points[i]['heading'])
                 }
 
             # Assign the whole dictionary to the blackboard at once

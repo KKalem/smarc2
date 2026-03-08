@@ -114,6 +114,10 @@ class LoiterActionFloatSam():
             FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10
         )
 
+        self._feedback_pub = self._node.create_publisher(
+            FloatStamped, FloatsamTopics.LOITER_HEADING_FB, 10
+        )        
+
         self._heading_reference_publisher = self._node.create_publisher(
            FloatStamped, FloatsamTopics.YAW_SETPOINT, 10
         )
@@ -344,8 +348,14 @@ class LoiterActionFloatSam():
         self._current_heading_error = np.degrees(abs(heading_error_rad))  # Convert to degrees
         
         # Update status flags
-        self._position_reached = self._distance_from_center <= self._loiter_tolerance
-        self._heading_reached = self._current_heading_error <= self._heading_tolerance
+        if self._distance_from_center <= self._loiter_tolerance:
+            self._position_reached = 1
+        else:
+            self._position_reached = 0
+        if self._current_heading_error <= self._heading_tolerance:
+            self._heading_reached = 1
+        else:
+            self._heading_reached = 0
         
         self._node.get_logger().info(
             f"Loitering: time remaining={time_remaining:.1f}s, "
@@ -500,9 +510,14 @@ class LoiterActionFloatSam():
                 "heading_error": round(self._current_heading_error, 1) if self._current_heading_error else 0.0,
                 "position_reached": self._position_reached,
                 "heading_reached": self._heading_reached,
-                "both_reached": self._position_reached and self._heading_reached
+                "both_reached": self._position_reached * self._heading_reached
             }
             
+            msg = FloatStamped()
+            msg.header.stamp = self.now_stamp
+            msg.data = float(feedback_data["both_reached"])
+            self._feedback_pub.publish(msg)
+
             return json.dumps(feedback_data)
         else:
             return json.dumps({"status": "not_started"})
