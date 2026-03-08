@@ -9,9 +9,9 @@ def generate_launch_description():
             name='rvo_manager',
             parameters=[{
                 'robot_name': 'floatsam_usv_0',
-                'time_horizon': 2.0,                # [s]
-                'safety_margin': 5.0,               # [m]
-                'max_speed': 3.0,                   # [m/s]
+                'time_horizon': 0.1,                # [s]
+                'safety_margin': 0.1,               # [m]
+                'max_speed': 2.0,                   # [m/s]
                 'update_rate': 20.0,                # [Hz]
                 'num_robot': 3                      #integer
             }],

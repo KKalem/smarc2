@@ -1,13 +1,11 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>floatsam_move_to</name>
+  <name>floatsam_go_to_formation_rvo</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="mannolorenzo421@gmail.com">lorenzo</maintainer>
+  <maintainer email="03alebassi@gmail.com">aleba</maintainer>
   <license>TODO: License declaration</license>
-
-  <depend>floatsam_interfaces</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -14,12 +14,14 @@ from .floatsam_common import FloatSam
 #from std_msgs.msg import Float32
 from smarc_msgs.msg import FloatStamped
 from floatsam_msgs.msg import Topics as FloatsamTopics
+from floatsam_interfaces.srv import GetSafeVelocity
 from geometry_msgs.msg import  PointStamped, PoseStamped
 from geographic_msgs.msg import GeoPoint
 from geometry_msgs.msg import PointStamped
 from nav_msgs.msg import Odometry
 from tf_transformations import euler_from_quaternion
 from std_msgs.msg import String
+from std_msgs.msg import Bool
 
 
 
@@ -65,6 +67,11 @@ class MoveToActionFloatSam():
         self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.YAW_SETPOINT, 10)
 
         self._speed_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10)
+
+        self._move_on_place_publisher = self._node.create_publisher(Bool, 'move_on_place', 1)
+
+        # RVO safe velocity service client
+        self._rvo_client = self._node.create_client(GetSafeVelocity, 'get_safe_velocity')
 
         # publisher for captain parameters 
         self._captain_parameters_publisher = self._node.create_publisher(
@@ -169,9 +176,7 @@ class MoveToActionFloatSam():
                 self._node.get_logger().warning(f"No valid speed specified, using default: {e}")
                 self._goal_speed = 2.0
 
-            # constant_speed: when True, skip the linear deceleration ramp
-            # inside the speed_threshold circle and hold goal_speed all the
-            # way to the tolerance boundary.
+            
             self._constant_speed = bool(goal_request.get('constant_speed', False))
             self._node.get_logger().info(f"Constant speed mode: {self._constant_speed}")
 
@@ -229,28 +234,64 @@ class MoveToActionFloatSam():
             return True
         
         if self._distance_remaining <= self._default_speed_threshold and not self._constant_speed:
-            # slow down when close to goal (unless constant_speed was requested)
             self._desired_speed = (self._distance_remaining / self._default_speed_threshold) * self._goal_speed
             self._node.get_logger().info(f"Slowing down, new speed: {self._desired_speed:.2f}")
         else:
             self._desired_speed = self._goal_speed
     
         self._node.get_logger().info(f"The desired speed is {self._desired_speed:.2f} m/s")
-        #calcuate error heading and speed
         error_heading = float(np.arctan2(goal_error[1], goal_error[0]))
-        #error_heading = float(np.pi/2 - error_heading)  # convert to floatsam heading frame ---->>>>>>>>>>>>>
+        
         self._node.get_logger().info(f"The distance remaining is {self._distance_remaining:.2f} m")
         speed = float(self._desired_speed)
         
+        rvo_request = GetSafeVelocity.Request()
+        rvo_request.robot_id = self._robot_name
+        rvo_request.pref_velocity = [speed * np.cos(error_heading), speed * np.sin(error_heading)]
+
+        move_on_place_msg = Bool()
+        move_on_place_msg.data = True 
+
+        if self._rvo_client.service_is_ready():
+            future = self._rvo_client.call_async(rvo_request)
+            deadline = time.time() + 0.5
+            while not future.done() and time.time() < deadline:
+                time.sleep(0.01)
+
+            if not future.done():
+                self._node.get_logger().warning('RVO service call timed out, skipping publish')
+                return None
+
+            rvo_response = future.result()
+            if not rvo_response.success:
+                self._node.get_logger().warning('RVO service returned success=False, skipping publish')
+                return None
+            else: 
+                self._node.get_logger().warning('RVO service returned success=Success')
+
+
+            safe_speed = rvo_response.safe_velocity[0]
+            safe_angle = rvo_response.safe_velocity[1]
+            self._node.get_logger().warning(f'safe_speed:{safe_speed}, pref_velocity:{speed}')
+            self._node.get_logger().warning(f'safe_angle:{safe_angle}, error_heading:{error_heading}')
+            if rvo_response.change == True:
+                move_on_place_msg.data = False
+            self._node.get_logger().warning(f'move_on_place_msg.data:{move_on_place_msg.data}') 
+        else:
+            self._node.get_logger().warning('RVO service not available, using preferred velocity directly')
+            safe_speed = speed
+            safe_angle = error_heading
+
         yaw_msg = FloatStamped()
         speed_msg = FloatStamped()
         now = self._node.get_clock().now().to_msg()
         yaw_msg.header.stamp = now
-        yaw_msg.data = error_heading
+        yaw_msg.data = safe_angle
         speed_msg.header.stamp = now
-        speed_msg.data = speed
+        speed_msg.data = safe_speed
         self._yaw_reference_publisher.publish(yaw_msg)
         self._speed_reference_publisher.publish(speed_msg)
+        self._move_on_place_publisher.publish(move_on_place_msg)
 
         angle_msg = FloatStamped()
         angle_msg.header.stamp = now

@@ -14,6 +14,7 @@ from smarc_msgs.msg import Topics as SmarcTopics
 from smarc_msgs.msg import FloatStamped
 from smarc_control_msgs.msg import Topics as ControlTopics
 from floatsam_msgs.msg import Topics as FloatsamTopics
+from std_msgs.msg import Bool
 
 # Import PID class and geometry utilities from local package
 from floatsam_controllers.pid import PID
@@ -42,6 +43,7 @@ class Captain(Node):
         self.logger.info(f"Update rate: {self.update_rate} Hz")
         self.robot_name = self.get_parameter("robot_name").value
         self.yaw_threshold = float(self.get_parameter("yaw_threshold").value)
+        self.move_on_place_flag = None
 
         # Initialize PID 
         
@@ -128,6 +130,7 @@ class Captain(Node):
                                  self.captain_parameters_cb, 1
                                  )
         
+        self.create_subscription(Bool, 'move_on_place', self.move_on_place_cb, 1)
 
         # Publishers: Thruster commands
         
@@ -138,6 +141,8 @@ class Captain(Node):
                                                        FloatsamTopics.THRUSTER_PORT_CMD, 1)
         self.thruster_strb_pub = self.create_publisher(Float32,
                                                        FloatsamTopics.THRUSTER_STRB_CMD, 1)
+        
+        
 
     def time_now(self):
         return self.get_clock().now().nanoseconds * 1e-9
@@ -190,10 +195,9 @@ class Captain(Node):
         self.last_velocity_meas_time = self.time_now()
         self.velocity_measurement = msg.data
 
-    # def angle_threshold_cb(self, msg):
-    #     self.yaw_threshold = msg.data
-
-    # Callbacks: Setpoints from behavior layer
+    def move_on_place_cb(self, msg):
+        self.logger.info(f"move_on_place.msg:{msg.data}")
+        self.move_on_place_flag = msg.data
     
     def yaw_setpoint_cb(self, msg):
 
@@ -316,8 +320,6 @@ class Captain(Node):
 
         # --- PID Control Cascade ---
         
-        # Step 1: Yaw PID - convert angle error to yaw_rate setpoint
-        # Use vector-based angle difference for wraparound handling
         setpoint_vec = np.array([np.cos(self.yaw_setpoint), np.sin(self.yaw_setpoint)])
         measurement_vec = np.array([np.cos(self.yaw_measurement), np.sin(self.yaw_measurement)])
         yaw_error = -geom.vec2_directed_angle(setpoint_vec, measurement_vec)
@@ -326,15 +328,13 @@ class Captain(Node):
 
         yaw_rate_setpoint = self.yaw_pid.update_error(yaw_error, now)
         
-        # Step 2: Yaw Rate PID - convert rate error to actuation signal
         yaw_rate_error = yaw_rate_setpoint - self.yaw_rate_measurement
         yaw_actuation = self.yawrate_pid.update_error(yaw_rate_error, now)
+        
 
-        if np.abs(yaw_error) <= self.yaw_threshold:
-        # Step 3: Velocity PID - convert velocity error to RPM setpoint
+        if np.abs(yaw_error) <= self.yaw_threshold or self.move_on_place_flag == False or self.move_on_place_flag is None:
             velocity_error = self.velocity_setpoint_input - self.velocity_measurement
             velocity_rpm_setpoint = self.velocity_pid.update_error(velocity_error, now)
-            #self.logger.info(f"The yaw_error is: {yaw_error}, The yaw_threshold is: {self.yaw_threshold}" )
         else:
             velocity_rpm_setpoint = 0
 
@@ -349,10 +349,6 @@ class Captain(Node):
 
         thruster_port_raw = velocity_rpm_setpoint - yaw_correction
         thruster_strb_raw = velocity_rpm_setpoint + yaw_correction
-
-        self.logger.info(f"thruster_port_raw:{thruster_port_raw}, thruster_strb_raw{thruster_strb_raw}")
-
-        # Health Check: Delta RPM rate limiting
         
         thruster_port = self.apply_rate_limit(
             thruster_port_raw, 
@@ -366,9 +362,6 @@ class Captain(Node):
             "Starboard"
         )
 
-        # Saturation and deadband
-        
-        # Apply thruster limits
         thruster_port = max(-self.thruster_limit, min(self.thruster_limit, thruster_port))
         thruster_strb = max(-self.thruster_limit, min(self.thruster_limit, thruster_strb))
 

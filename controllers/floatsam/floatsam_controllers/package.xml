@@ -12,6 +12,7 @@
   <depend>smarc_msgs</depend>
   <depend>smarc_control_msgs</depend>
   <depend>floatsam_msgs</depend>
+  <depend>floatsam_interfaces</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
