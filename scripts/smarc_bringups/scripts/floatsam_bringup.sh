@@ -54,7 +54,7 @@ tmux select-layout -t $SESSION:3 tiled
 tmux select-pane -t $SESSION:3.0
 tmux send-keys "sleep 2; ros2 launch floatsam_controllers floatsam_controllers_launch.py robot_name:=$ROBOT_NAME" C-m
 tmux select-pane -t $SESSION:3.1
-tmux send-keys "sleep 3; ros2 run floatsam_controllers rvo_service_node --ros-args -r __ns:=/$ROBOT_NAME -p robot_name:=$ROBOT_NAME -p time_horizon:=2.0 -p safety_margin:=5.0 -p max_speed:=3.0 -p update_rate:=20.0 -p num_robot:=3" C-m
+tmux send-keys "sleep 3; ros2 launch floatsam_controllers rvo_launch.py robot_name:=$ROBOT_NAME" C-m
 
 # --- Servers / action servers ---
 tmux new-window -t $SESSION:4 -n 'servers'

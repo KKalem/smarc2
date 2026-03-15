@@ -22,7 +22,7 @@ def generate_launch_description():
 
     num_robots_arg = DeclareLaunchArgument(
         'num_robots',
-        default_value='2',
+        default_value='3',
         description='Total number of floatsam USVs in the fleet (IDs will be 0 .. num_robots-1)'
     )
 

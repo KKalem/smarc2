@@ -4,7 +4,9 @@
   <name>floatsam_controllers</name>
   <version>0.0.0</version>
   <description>FloatSam USV control stack with cascaded PIDs and captain mixer</description>
-  <maintainer email="filippodifiore@example.com">filippo</maintainer>
+  <maintainer email="fidf@kth.se">filippo</maintainer>
+  <maintainer email="alebas@kth.se">Alessandro</maintainer>
+  <maintainer email="lmanno@kth.se">Bogosbinted</maintainer>
   <license>BSD-3-Clause</license>
 
   <depend>rclpy</depend>

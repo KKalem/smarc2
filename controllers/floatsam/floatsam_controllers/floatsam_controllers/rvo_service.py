@@ -14,12 +14,12 @@ from floatsam_msgs.msg import Topics as FloatsamTopics
 
 class RVOservice(Node):
     def __init__(self):
-        super().__init__("RVO_service_node")
+        super().__init__("rvo_service_node")
         self.logger = self.get_logger()
         self.srv = self.create_service(GetSafeVelocity, 'get_safe_velocity', self.compute_safe_velocity_callback)
         self.get_logger().info('RVO Safe Velocity Service is ready.')
         self.declare_node_parameters()
-        self.get_node_parametrs()
+        self.get_node_parameters()
         self._floatsam = FloatSam(self, self.this_robot_name)
 
         self._odom_subscribers = {}
@@ -29,16 +29,15 @@ class RVOservice(Node):
         self.create_subscription(FloatStamped, FloatsamTopics.YAW_SETPOINT, self.yaw_setpoint_cb, 1)
         self.create_subscription(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, self.velocity_setpoint_cb, 1)
 
-        speed_samples = np.arange(0.5, self.max_speed + 0.5, 0.5)  
+        speed_samples = np.arange(-0.5, self.max_speed + 0.5, 0.5)  
         self.velocity_sample = self.velocity_samples(speed_samples)
-        
-
+        self.effective_safety_margin = 2 * self.safety_margin
     
     def compute_safe_velocity_callback(self, request, response):
         # request.robot_id
         # request.pref_velocity
 
-        self.safety_margin = 2 * self.safety_margin / self.time_horizon
+        #self.safety_margin = 2 * self.safety_margin / self.time_horizon
 
         self.get_logger().info('The service has been activated')
 
@@ -112,38 +111,96 @@ class RVOservice(Node):
         # response.safe_velocity = calculated_velocity
         # response.success = True
         return response
-
+    
 
     def is_in_cone(self, idx, v_apex, projected_velocity):
         position = self._robot_positions[f'{self.robot_base_name}_{idx}'].pose.position
         position = np.array([position.x, position.y])
 
-        rp = position - self.this_robot_position  # <-- FIXED: toward the other robot
-
+        rp = position - self.this_robot_position  # Vector pointing toward the other robot
         distance = np.linalg.norm(rp)
 
         if distance < 1e-6:
             return True
 
-        #cone_apex = rp / self.time_horizon + v_apex
-
         relative_velocity = projected_velocity - v_apex
+        speed_rel = np.linalg.norm(relative_velocity)
 
-        ratio = np.clip(self.safety_margin / distance, -1.0, 1.0)
+        # If there is no relative movement, they will never collide
+        if speed_rel < 1e-9:
+            return False
+
+        # --- Step 1: Infinite Cone Check ---
+        ratio = np.clip(self.effective_safety_margin / distance, -1.0, 1.0)
         alpha = np.arcsin(ratio)
 
-        return self.comput_angle(rp, relative_velocity) < alpha
+        # Call the newly renamed function
+        theta = self.compute_angle(rp, relative_velocity)
+
+        # If outside the cone, it's safe
+        if theta >= alpha:
+            #self.get_logger().info('Infinite cone collision')
+            return False
+
+        # --- Step 2: Time Horizon Truncation ---
+        # How fast are we closing the distance?
+        approach_speed = speed_rel * np.cos(theta)
+
+        # Distance until safety margins touch
+        distance_to_edge = distance - self.effective_safety_margin
+        
+
+        # If already overlapping, it's unsafe
+        if distance_to_edge <= 0:
+            #self.get_logger().info(f'Distance to edge:{distance_to_edge}')
+            #self.get_logger().info(f'Distance:{distance}')
+            #self.get_logger().info(f'self.effective_safety_margin:{self.effective_safety_margin}')
+            return True
+
+        # Calculate time to collision
+        time_to_collision = distance_to_edge / approach_speed
+        #self.get_logger().info(f'Time to collision:{time_to_collision}')
+        #self.get_logger().info(f'self.time_horizon:{self.time_horizon}')
+
+        # It is only unsafe if the collision happens sooner than our time horizon
+        return time_to_collision < self.time_horizon
 
         
-    def comput_angle(self, v_apex, projected_velocity):
-        norm_v_apex = np.linalg.norm(v_apex)
-        norm_projected_velocity = np.linalg.norm(projected_velocity)
-        if norm_v_apex < 1e-9 or norm_projected_velocity < 1e-9:
+    def compute_angle(self, vector1, vector2):
+        norm1 = np.linalg.norm(vector1)
+        norm2 = np.linalg.norm(vector2)
+        
+        if norm1 < 1e-9 or norm2 < 1e-9:
             return 0.0  
-        dot_product = np.dot(v_apex, projected_velocity)
-        cos_theta = dot_product / (norm_v_apex * norm_projected_velocity)
+            
+        dot_product = np.dot(vector1, vector2)
+        cos_theta = dot_product / (norm1 * norm2)
         cos_theta = np.clip(cos_theta, -1.0, 1.0)
+        
         return np.arccos(cos_theta)
+
+
+    #def is_in_cone(self, idx, v_apex, projected_velocity):
+    #    position = self._robot_positions[f'{self.robot_base_name}_{idx}'].pose.position
+    #    position = np.array([position.x, position.y])
+#
+    #    rp = position - self.this_robot_position  # <-- FIXED: toward the other robot
+#
+    #    distance = np.linalg.norm(rp)
+#
+    #    if distance < 1e-6:
+    #        return True
+#
+    #    #cone_apex = rp / self.time_horizon + v_apex
+#
+    #    relative_velocity = projected_velocity - v_apex
+#
+    #    ratio = np.clip(self.effective_safety_margin / distance, -1.0, 1.0)
+    #    alpha = np.arcsin(ratio)
+#
+    #    return self.comput_angle(rp, relative_velocity) < alpha
+#
+    #    
 
     def velocity_samples(self, speed_samples):
         num_angles = 120
@@ -161,13 +218,13 @@ class RVOservice(Node):
     def declare_node_parameters(self):
         """Declare all configurable parameters for PIDs and mixer"""
         self.declare_parameter("robot_name", "floatsam_0")
-        self.declare_parameter("time_horizon", 2.0)
-        self.declare_parameter("safety_margin", 5.0)
+        self.declare_parameter("time_horizon", 0.5)
+        self.declare_parameter("safety_margin", 0.5)
         self.declare_parameter("max_speed", 3.0)
         self.declare_parameter("update_rate", 0.0)
         self.declare_parameter("num_robot", 3)
 
-    def get_node_parametrs(self):
+    def get_node_parameters(self):
         self.this_robot_name = str(self.get_parameter("robot_name").value)
         self.update_rate = float(self.get_parameter("update_rate").value)
         self.safety_margin = float(self.get_parameter("safety_margin").value)

@@ -43,7 +43,7 @@ class Captain(Node):
         self.logger.info(f"Update rate: {self.update_rate} Hz")
         self.robot_name = self.get_parameter("robot_name").value
         self.yaw_threshold = float(self.get_parameter("yaw_threshold").value)
-        self.move_on_place_flag = None
+        self.move_on_place_flag = True
 
         # Initialize PID 
         
@@ -196,7 +196,7 @@ class Captain(Node):
         self.velocity_measurement = msg.data
 
     def move_on_place_cb(self, msg):
-        self.logger.info(f"move_on_place.msg:{msg.data}")
+        #self.logger.info(f"move_on_place.msg:{msg.data}")
         self.move_on_place_flag = msg.data
     
     def yaw_setpoint_cb(self, msg):
@@ -245,11 +245,11 @@ class Captain(Node):
             limited_delta = self.max_delta_rpm if delta > 0 else -self.max_delta_rpm
             limited_cmd = last_cmd + limited_delta
             
-            self.logger.warn(
-                f"{name}: Delta RPM {delta:.1f} exceeds limit {self.max_delta_rpm:.1f}. "
-                f"Limiting to {limited_cmd:.1f}",
-                throttle_duration_sec=2.0
-            )
+            #self.logger.warn(
+            #    f"{name}: Delta RPM {delta:.1f} exceeds limit {self.max_delta_rpm:.1f}. "
+            #    f"Limiting to {limited_cmd:.1f}",
+            #    throttle_duration_sec=2.0
+            #)
             return limited_cmd
         
         return new_cmd
@@ -324,7 +324,7 @@ class Captain(Node):
         measurement_vec = np.array([np.cos(self.yaw_measurement), np.sin(self.yaw_measurement)])
         yaw_error = -geom.vec2_directed_angle(setpoint_vec, measurement_vec)
         
-        self.logger.info(f"Error Heading: {yaw_error}, yaw setpoint: {self.yaw_setpoint}, yaw measured: {self.yaw_measurement}" )
+        #self.logger.info(f"Error Heading: {yaw_error}, yaw setpoint: {self.yaw_setpoint}, yaw measured: {self.yaw_measurement}" )
 
         yaw_rate_setpoint = self.yaw_pid.update_error(yaw_error, now)
         
@@ -332,11 +332,14 @@ class Captain(Node):
         yaw_actuation = self.yawrate_pid.update_error(yaw_rate_error, now)
         
 
-        if np.abs(yaw_error) <= self.yaw_threshold or self.move_on_place_flag == False or self.move_on_place_flag is None:
+        if np.abs(yaw_error) <= self.yaw_threshold or not self.move_on_place_flag:
             velocity_error = self.velocity_setpoint_input - self.velocity_measurement
             velocity_rpm_setpoint = self.velocity_pid.update_error(velocity_error, now)
         else:
             velocity_rpm_setpoint = 0
+            self.logger.info(f"np.abs(yaw_error):{np.abs(yaw_error)}, while the threshold is:{self.yaw_threshold}")
+            self.logger.info(f"self.move_on_place_flag:{self.move_on_place_flag}")
+            self.logger.info("I am setting the velocity_rpm_setpoint to zero")
 
         # Mixing: Differential thrust
         

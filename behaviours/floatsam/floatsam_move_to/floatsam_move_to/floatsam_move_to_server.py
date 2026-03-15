@@ -276,7 +276,7 @@ class MoveToActionFloatSam():
             self._node.get_logger().warning(f'safe_angle:{safe_angle}, error_heading:{error_heading}')
             if rvo_response.change == True:
                 move_on_place_msg.data = False
-            self._node.get_logger().warning(f'move_on_place_msg.data:{move_on_place_msg.data}') 
+            #self._node.get_logger().warning(f'move_on_place_msg.data:{move_on_place_msg.data}') 
         else:
             self._node.get_logger().warning('RVO service not available, using preferred velocity directly')
             safe_speed = speed

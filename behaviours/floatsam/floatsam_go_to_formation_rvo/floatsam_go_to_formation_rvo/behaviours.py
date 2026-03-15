@@ -765,14 +765,13 @@ class AllArrivalCheck(py_trees.behaviour.Behaviour):
         # Read robot_positions and robot_assignments
         # Check if ALL robots are at their assigned targets
 
-        all_arrived_flag = False
+        all_arrived_flag = True
         for robot_name, ready in self.blackboard.loiter_heading_fb.items():
             self.node.get_logger().info(f"{self.name}: Loiter feedback for {robot_name} = {ready}")
-            if ready == 0:
+            if ready == 0 or ready == None:
                 all_arrived_flag = False
                 break
-            elif ready == 1:
-                all_arrived_flag = True
+
 
 
         if all_arrived_flag:
