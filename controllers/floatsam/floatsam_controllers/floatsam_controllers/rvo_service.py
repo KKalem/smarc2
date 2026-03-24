@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 
 from .floatsam_common import FloatSam
-from floatsam_interfaces.srv import GetSafeVelocity #to be added 
+from floatsam_interfaces.srv import GetSafeVelocity  
 from tf2_geometry_msgs import do_transform_pose_stamped
 
 from nav_msgs.msg import Odometry
@@ -26,9 +26,7 @@ class RVOservice(Node):
         self._robot_positions = {}
         self._robot_velocities = {}
         self._odometry_subscriptions()
-        self.create_subscription(FloatStamped, FloatsamTopics.YAW_SETPOINT, self.yaw_setpoint_cb, 1)
-        self.create_subscription(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, self.velocity_setpoint_cb, 1)
-
+        
         speed_samples = np.arange(-0.5, self.max_speed + 0.5, 0.5)  
         self.velocity_sample = self.velocity_samples(speed_samples)
         self.effective_safety_margin = 2 * self.safety_margin
@@ -36,8 +34,6 @@ class RVOservice(Node):
     def compute_safe_velocity_callback(self, request, response):
         # request.robot_id
         # request.pref_velocity
-
-        #self.safety_margin = 2 * self.safety_margin / self.time_horizon
 
         self.get_logger().info('The service has been activated')
 
@@ -117,7 +113,7 @@ class RVOservice(Node):
         position = self._robot_positions[f'{self.robot_base_name}_{idx}'].pose.position
         position = np.array([position.x, position.y])
 
-        rp = position - self.this_robot_position  # Vector pointing toward the other robot
+        rp = position - self.this_robot_position  
         distance = np.linalg.norm(rp)
 
         if distance < 1e-6:
@@ -126,43 +122,27 @@ class RVOservice(Node):
         relative_velocity = projected_velocity - v_apex
         speed_rel = np.linalg.norm(relative_velocity)
 
-        # If there is no relative movement, they will never collide
         if speed_rel < 1e-9:
             return False
 
-        # --- Step 1: Infinite Cone Check ---
         ratio = np.clip(self.effective_safety_margin / distance, -1.0, 1.0)
         alpha = np.arcsin(ratio)
 
-        # Call the newly renamed function
         theta = self.compute_angle(rp, relative_velocity)
 
-        # If outside the cone, it's safe
         if theta >= alpha:
-            #self.get_logger().info('Infinite cone collision')
             return False
 
-        # --- Step 2: Time Horizon Truncation ---
-        # How fast are we closing the distance?
         approach_speed = speed_rel * np.cos(theta)
 
-        # Distance until safety margins touch
         distance_to_edge = distance - self.effective_safety_margin
         
 
-        # If already overlapping, it's unsafe
         if distance_to_edge <= 0:
-            #self.get_logger().info(f'Distance to edge:{distance_to_edge}')
-            #self.get_logger().info(f'Distance:{distance}')
-            #self.get_logger().info(f'self.effective_safety_margin:{self.effective_safety_margin}')
             return True
 
-        # Calculate time to collision
         time_to_collision = distance_to_edge / approach_speed
-        #self.get_logger().info(f'Time to collision:{time_to_collision}')
-        #self.get_logger().info(f'self.time_horizon:{self.time_horizon}')
 
-        # It is only unsafe if the collision happens sooner than our time horizon
         return time_to_collision < self.time_horizon
 
         
@@ -179,28 +159,6 @@ class RVOservice(Node):
         
         return np.arccos(cos_theta)
 
-
-    #def is_in_cone(self, idx, v_apex, projected_velocity):
-    #    position = self._robot_positions[f'{self.robot_base_name}_{idx}'].pose.position
-    #    position = np.array([position.x, position.y])
-#
-    #    rp = position - self.this_robot_position  # <-- FIXED: toward the other robot
-#
-    #    distance = np.linalg.norm(rp)
-#
-    #    if distance < 1e-6:
-    #        return True
-#
-    #    #cone_apex = rp / self.time_horizon + v_apex
-#
-    #    relative_velocity = projected_velocity - v_apex
-#
-    #    ratio = np.clip(self.effective_safety_margin / distance, -1.0, 1.0)
-    #    alpha = np.arcsin(ratio)
-#
-    #    return self.comput_angle(rp, relative_velocity) < alpha
-#
-    #    
 
     def velocity_samples(self, speed_samples):
         num_angles = 120
@@ -274,14 +232,6 @@ class RVOservice(Node):
         self._robot_positions[f'{self.robot_base_name}_{robot_id}'] = pose_in_map
         self._robot_velocities[f'{self.robot_base_name}_{robot_id}'] = velocity_in_odom
 
-    def yaw_setpoint_cb(self, msg):
-
-        self.last_yaw_setpoint_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        self.yaw_setpoint = msg.data
-
-    def velocity_setpoint_cb(self, msg):
-        self.last_velocity_setpoint_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        self.velocity_setpoint_input = msg.data
 
 
 def main(args=None):

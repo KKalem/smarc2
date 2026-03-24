@@ -16,7 +16,6 @@ from smarc_control_msgs.msg import Topics as ControlTopics
 from floatsam_msgs.msg import Topics as FloatsamTopics
 from std_msgs.msg import Bool
 
-# Import PID class and geometry utilities from local package
 from floatsam_controllers.pid import PID
 import floatsam_controllers.geometry as geom
 
@@ -45,9 +44,7 @@ class Captain(Node):
         self.yaw_threshold = float(self.get_parameter("yaw_threshold").value)
         self.move_on_place_flag = True
 
-        # Initialize PID 
         
-        # Yaw PID: converts heading error to yaw_rate setpoint
         self.yaw_pid = PID(
             kP=float(self.get_parameter("yaw_p_gain").value),
             kI=float(self.get_parameter("yaw_i_gain").value),
@@ -55,7 +52,6 @@ class Captain(Node):
             max_output=float(self.get_parameter("yaw_output_limit").value)
         )
         
-        # Yaw Rate PID: converts yaw_rate error to yaw actuation
         self.yawrate_pid = PID(
             kP=float(self.get_parameter("yawrate_p_gain").value),
             kI=float(self.get_parameter("yawrate_i_gain").value),
@@ -63,7 +59,6 @@ class Captain(Node):
             max_output=float(self.get_parameter("yawrate_output_limit").value)
         )
         
-        # Velocity PID: converts velocity error to RPM setpoint
         self.velocity_pid = PID(
             kP=float(self.get_parameter("velocity_p_gain").value),
             kI=float(self.get_parameter("velocity_i_gain").value),
@@ -73,22 +68,17 @@ class Captain(Node):
         
         self.logger.info("Initialized 3 PID controllers with configurable gains")
 
-        # Mixer parameters
         
         self.rpm_deadband = float(self.get_parameter("rpm_deadband").value)
         self.thruster_limit = float(self.get_parameter("thruster_limit").value)
-        # Turn-in-place tuning: minimum RPM applied when velocity is zero,
-        # and a gain to scale action by heading error magnitude.
+        
         self.turn_in_place_min_rpm = float(self.get_parameter("turn_in_place_min_rpm").value)
         self.turn_in_place_gain = float(self.get_parameter("turn_in_place_gain").value)
         
-        # Delta RPM rate limiting (health check)
         self.max_delta_rpm = float(self.get_parameter("max_delta_rpm").value)
         self.last_thruster_port_cmd = 0.0
         self.last_thruster_strb_cmd = 0.0
-        
-        # State variables for sensor feedback
-        
+                
         self.yaw_measurement = 0.0
         self.yaw_rate_measurement = 0.0
         self.velocity_measurement = 0.0
@@ -96,14 +86,12 @@ class Captain(Node):
         self.yaw_setpoint = 0.0
         self.velocity_setpoint = 0.0
         
-        # Timeouts for safety
         self.last_yaw_meas_time = 0.0
         self.last_yawrate_meas_time = 0.0
         self.last_velocity_meas_time = 0.0
         self.last_yaw_setpoint_time = 0.0
         self.last_velocity_setpoint_time = 0.0
 
-        # Subscribers: Sensor feedback from odom_splitter
         
         self.create_subscription(Float32, ControlTopics.CONTROL_YAW_TOPIC,
                                  self.yaw_meas_cb, 1)
@@ -112,18 +100,12 @@ class Captain(Node):
         self.create_subscription(Float32, ControlTopics.CONTROL_SURGE_RATE_TOPIC,
                                  self.velocity_meas_cb, 1)
     
-        # angle_topic = f"/{self.robot_name}/angle_threshold_captain"
-        # self.create_subscription(FloatStamped, angle_topic,
-        #                          self.angle_threshold_cb, 1)
-        
-        # Subscribers: Setpoints from behavior layer
         
         self.create_subscription(FloatStamped, FloatsamTopics.YAW_SETPOINT,
                                  self.yaw_setpoint_cb, 1)
         self.create_subscription(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT,
                                  self.velocity_setpoint_cb, 1)
         
-        # Subscriber for "captain_paramaters"
 
         self.create_subscription(String, 
                                  f"/{self.robot_name}/captain_parameters",
@@ -131,8 +113,6 @@ class Captain(Node):
                                  )
         
         self.create_subscription(Bool, 'move_on_place', self.move_on_place_cb, 1)
-
-        # Publishers: Thruster commands
         
         self.thruster_port_msg = Float32()
         self.thruster_strb_msg = Float32()
@@ -152,30 +132,25 @@ class Captain(Node):
         self.declare_parameter("robot_name", "floatsam_usv")
         self.declare_parameter("update_rate", 20.0)
         
-        # Yaw PID parameters
         self.declare_parameter("yaw_p_gain", 0.15)
         self.declare_parameter("yaw_i_gain", 0.0)
         self.declare_parameter("yaw_d_gain", 0.0)
         self.declare_parameter("yaw_output_limit", 0.1)  # rad/s
         self.declare_parameter("yaw_threshold", 0.5)
         
-        # Yaw Rate PID parameters
         self.declare_parameter("yawrate_p_gain", 20.0)
         self.declare_parameter("yawrate_i_gain", 0.0)
         self.declare_parameter("yawrate_d_gain", 0.0)
         self.declare_parameter("yawrate_output_limit", 800.0)  # RPM
         
-        # Velocity PID parameters
         self.declare_parameter("velocity_p_gain", 500.0)
         self.declare_parameter("velocity_i_gain", 10.0)
         self.declare_parameter("velocity_d_gain", 0.0)
         self.declare_parameter("velocity_output_limit", 800.0)  # RPM
         
-        # Mixer parameters
         self.declare_parameter("rpm_deadband", 50.0)  # RPM
         self.declare_parameter("thruster_limit", 1000.0)  # RPM
         self.declare_parameter("max_delta_rpm", 200.0)  # RPM per control cycle
-        # Parameters for turn-in-place behaviour
         self.declare_parameter("turn_in_place_min_rpm", 100.0)  # RPM, minimum to overcome stiction
         self.declare_parameter("turn_in_place_gain", 10.0)  # RPM per radian of heading error
 
@@ -183,7 +158,7 @@ class Captain(Node):
     
     def yaw_meas_cb(self, msg):
         self.last_yaw_meas_time = self.time_now()
-        self.yaw_measurement = msg.data # convert from odom_splitter frame to floatsam heading frame
+        self.yaw_measurement = msg.data 
 
 
     def yawrate_meas_cb(self, msg):
@@ -196,7 +171,6 @@ class Captain(Node):
         self.velocity_measurement = msg.data
 
     def move_on_place_cb(self, msg):
-        #self.logger.info(f"move_on_place.msg:{msg.data}")
         self.move_on_place_flag = msg.data
     
     def yaw_setpoint_cb(self, msg):
@@ -241,15 +215,8 @@ class Captain(Node):
         delta = new_cmd - last_cmd
         
         if abs(delta) > self.max_delta_rpm:
-            # Limit the change
             limited_delta = self.max_delta_rpm if delta > 0 else -self.max_delta_rpm
             limited_cmd = last_cmd + limited_delta
-            
-            #self.logger.warn(
-            #    f"{name}: Delta RPM {delta:.1f} exceeds limit {self.max_delta_rpm:.1f}. "
-            #    f"Limiting to {limited_cmd:.1f}",
-            #    throttle_duration_sec=2.0
-            #)
             return limited_cmd
         
         return new_cmd
@@ -266,12 +233,9 @@ class Captain(Node):
             err_mag = abs(yaw_error)
             if err_mag == 0.0:
                     return 0.0
-            # Minimum actuation is either the PID output magnitude, configured
-            # minimum, or a gain times the heading error.
             mag = max(abs(yaw_actuation), self.turn_in_place_min_rpm, self.turn_in_place_gain * err_mag)
             mag = min(mag, self.thruster_limit)
             return np.sign(yaw_error) * mag
-    # Main control update loop
 
     def update(self):
         """
@@ -288,9 +252,7 @@ class Captain(Node):
         8. Publish thruster commands
         """
         now = self.time_now()
-        timeout = 1.0  # seconds
-        
-        # Safety: Check all input timeouts
+        timeout = 1.0  
         
         measurements_ok = (
             (now - self.last_yaw_meas_time) < timeout and
@@ -306,14 +268,12 @@ class Captain(Node):
         
         
         if not measurements_ok or not setpoints_ok:
-            # Safety: stop thrusters if we lose any input
             self.logger.warn("Control input timeout - stopping thrusters", throttle_duration_sec=1.0)
             self.thruster_port_msg.data = 0.0
             self.thruster_strb_msg.data = 0.0
             self.thruster_port_pub.publish(self.thruster_port_msg)
             self.thruster_strb_pub.publish(self.thruster_strb_msg)
             
-            # Reset last commands for next cycle
             self.last_thruster_port_cmd = 0.0
             self.last_thruster_strb_cmd = 0.0
             return
@@ -324,8 +284,6 @@ class Captain(Node):
         measurement_vec = np.array([np.cos(self.yaw_measurement), np.sin(self.yaw_measurement)])
         yaw_error = -geom.vec2_directed_angle(setpoint_vec, measurement_vec)
         
-        #self.logger.info(f"Error Heading: {yaw_error}, yaw setpoint: {self.yaw_setpoint}, yaw measured: {self.yaw_measurement}" )
-
         yaw_rate_setpoint = self.yaw_pid.update_error(yaw_error, now)
         
         yaw_rate_error = yaw_rate_setpoint - self.yaw_rate_measurement
@@ -340,16 +298,12 @@ class Captain(Node):
             self.logger.info(f"np.abs(yaw_error):{np.abs(yaw_error)}, while the threshold is:{self.yaw_threshold}")
             self.logger.info(f"self.move_on_place_flag:{self.move_on_place_flag}")
             self.logger.info("I am setting the velocity_rpm_setpoint to zero")
-
-        # Mixing: Differential thrust
         
         if velocity_rpm_setpoint == 0:
             yaw_correction = self.compute_turn_in_place_actuation(yaw_error, yaw_actuation)
         else:
             yaw_correction = yaw_actuation
         
-        # Base RPM for both thrusters, then add/subtract for steering
-
         thruster_port_raw = velocity_rpm_setpoint - yaw_correction
         thruster_strb_raw = velocity_rpm_setpoint + yaw_correction
         
@@ -368,21 +322,17 @@ class Captain(Node):
         thruster_port = max(-self.thruster_limit, min(self.thruster_limit, thruster_port))
         thruster_strb = max(-self.thruster_limit, min(self.thruster_limit, thruster_strb))
 
-        # Apply deadband to avoid very small commands that might stall motors
         if abs(thruster_port) < self.rpm_deadband:
             thruster_port = 0.0
         if abs(thruster_strb) < self.rpm_deadband:
             thruster_strb = 0.0
 
-        # Publish and save for next cycle
-        
         self.thruster_port_msg.data = thruster_port
         self.thruster_strb_msg.data = thruster_strb
         
         self.thruster_port_pub.publish(self.thruster_port_msg)
         self.thruster_strb_pub.publish(self.thruster_strb_msg)
         
-        # Save for delta RPM calculation next cycle
         self.last_thruster_port_cmd = thruster_port
         self.last_thruster_strb_cmd = thruster_strb
 

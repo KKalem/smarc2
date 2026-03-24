@@ -10,7 +10,6 @@ from rclpy.executors import MultiThreadedExecutor
 
 from std_msgs.msg import Float32
 
-#Basic PID regulator
 class PID(object):
 
     def __init__(self,kP=None,kI=None,kD=None,max_output = None):
@@ -30,11 +29,9 @@ class PID(object):
         self.last_meassurement = None
 
     def update_error(self, error, time_s):
-        #print("PID update: " + str(error))
         current_time_s = time_s
         dt = current_time_s - self.last_update if self.last_update is not None else None
 
-        #reset I of dt > 1s
         if(dt is not None and dt > 1):
             self.integral = 0
             self.last_derivative = None
@@ -45,15 +42,12 @@ class PID(object):
         if dt is not None and self.last_error is not None and self.last_derivative is not None:
             derivative = self.kD*(error - self.last_error) / dt
 
-            # discrete low pass filter, cuts out the
-            # high frequency noise that can drive the controller crazy
             RC = 1/(2*math.pi*self._fCut)
             derivative = self.last_derivative + ((dt / (RC + dt))*(derivative - self.last_derivative))
         else:
             derivative = 0
         self.last_derivative = derivative
 
-        #prevent integral windup
         if self.max_output is not None:
             if(self.integral > self.max_output): self.integral = self.max_output
             if(self.integral < -self.max_output): self.integral = -self.max_output
@@ -66,7 +60,6 @@ class PID(object):
 
 
 
-#Wrapper for the PID class with subscribers and publishers
 class PID_wrapper(Node):
     def __init__(self):
         super().__init__("pid_node")
@@ -121,21 +114,18 @@ class PID_wrapper(Node):
         self.setpoint = msg.data
 
     def update(self):
-        #Check if we have timed out
-        #print("wrapper update")
+        
         now = self.time_now()
         if(now - self.meassurement_time < 1 and now - self.setpoint_time < 1):
             if self.version == 'yaw':
                 setpoint = np.array([np.cos(self.setpoint) , np.sin(self.setpoint)])
                 meassurement = np.array([np.cos(self.meassurement) , np.sin(self.meassurement)])
                 error = -geom.vec2_directed_angle(setpoint, meassurement)
-                #print("Yaw controller update")
             else:
                 error = self.setpoint - self.meassurement
             self.output.data = self.pid.update_error(error, self.time_now())
             self.output_pub.publish(self.output)
         else:
-            #print("setpoint or meassurement timout")
             pass
 
 

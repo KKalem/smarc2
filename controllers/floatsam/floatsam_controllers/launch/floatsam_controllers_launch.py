@@ -15,7 +15,6 @@ def generate_launch_description():
         default_value='floatsam_usv'
     )
 
-    # Split odometry into individual topics for yaw, yaw_rate, and surge velocity
     odom_splitter_node = Node(
         package='odom_splitter',
         namespace=robot_ns,
@@ -27,8 +26,6 @@ def generate_launch_description():
     # ============================================
     # CAPTAIN NODE - Integrated Controller
     # ============================================
-    # Captain contains all 3 PIDs internally as Python objects
-    # and handles mixing + rate limiting
     
     captain_node = Node(
         package='floatsam_controllers',
@@ -40,7 +37,6 @@ def generate_launch_description():
             "update_rate": 20.0,
             
             # ===== YAW PID PARAMETERS =====
-            # Converts heading angle error to yaw_rate setpoint
             "yaw_p_gain": 0.3,
             "yaw_i_gain": 0.0,
             "yaw_d_gain": 0.1,
@@ -48,14 +44,12 @@ def generate_launch_description():
             "yaw_threshold": 0.5,
             
             # ===== YAW RATE PID PARAMETERS =====
-            # Converts yaw_rate error to actuation signal
             "yawrate_p_gain": 300.0,
             "yawrate_i_gain": 0.0,
             "yawrate_d_gain": 30.0,
             "yawrate_output_limit": 800.0,  # RPM
             
             # ===== VELOCITY PID PARAMETERS =====
-            # Converts velocity error to RPM setpoint
             "velocity_p_gain": 500.0,
             "velocity_i_gain": 10.0,
             "velocity_d_gain": 0.0,
