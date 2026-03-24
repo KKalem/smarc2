@@ -4,31 +4,31 @@
 sensors:
   # GPS sensors (dual GPS setup)
   gps_left:
-    input_topic: '/floatsam/hardware/gps_left/fix'  # PLACEHOLDER
+    input_topic: '/fmu/out/vehicle_gps_position'  
     output_topic: 'core/gps_left'
-    msg_type: 'sensor_msgs/NavSatFix'
+    msg_type: 'px4_msgs/SensorGps'
     
   gps_right:
-    input_topic: '/floatsam/hardware/gps_right/fix'  # PLACEHOLDER
+    input_topic: '/fmu/out/vehicle_gps_position' 
     output_topic: 'core/gps_right'
-    msg_type: 'sensor_msgs/NavSatFix'
+    msg_type: 'px4_msgs/SensorGps'
     
   # RTK GPS
-  rtk_left:
-    input_topic: '/floatsam/hardware/rtk_left/fix'  # PLACEHOLDER
-    output_topic: 'core/rtk_left'
+  rtk_heading:
+    input_topic: '/heading'  
+    output_topic: 'core/heading'
     msg_type: 'sensor_msgs/NavSatFix'
     
   rtk_right:
-    input_topic: '/floatsam/hardware/rtk_right/fix'  # PLACEHOLDER
-    output_topic: 'core/rtk_right'
+    input_topic: '/gpgga'  
+    output_topic: 'core/rtk_position'
     msg_type: 'sensor_msgs/NavSatFix'
     
-  # IMU (raw data only)
+  # IMU 
   imu:
-    input_topic: '/floatsam/hardware/imu/data'  # PLACEHOLDER
+    input_topic: '/fmu/out/sensor_combined'
     output_topic: 'core/imu'
-    msg_type: 'sensor_msgs/Imu'
+    msg_type: 'px4_msgs/SensorCombined'
     
   # Depth pressure
   depth_pressure:
@@ -50,39 +50,45 @@ sensors:
     
   # Odometry
   odom:
-    input_topic: '/floatsam/hardware/odom'  # PLACEHOLDER
+    input_topic: '/fmu/out/vehicle_odometry'
     output_topic: 'smarc/odom'
-    msg_type: 'nav_msgs/Odometry'
+    msg_type: 'px4_msgs/VehicleOdometry'
     
-  # Battery
+  # Battery 
   battery:
-    input_topic: '/floatsam/hardware/battery'  # PLACEHOLDER
+    input_topic: '/fmu/out/battery_status_v1'
     output_topic: 'smarc/battery_percent'
-    msg_type: 'std_msgs/Float32'
-
+    msg_type: 'px4_msgs/BatteryStatus'
+    
 # Actuators
 # Bridge translates captain's standard topics to hardware-specific topics
 # NOTE: Hardware output topics use absolute paths (start with /) to avoid robot namespace
+# Actuators
 actuators:
   thruster_port_cmd:
-    input_topic: '/{robot_name}/actuators/thruster_port_cmd'  # From captain (FloatsamTopics.THRUSTER_PORT_CMD)
-    output_topic: '/floatsam/hardware/thruster_port_cmd'  # PLACEHOLDER - To hardware driver (absolute)
+    input_topic: '/{robot_name}/actuators/thruster_port_cmd'
     msg_type: 'std_msgs/Float32'
     
   thruster_strb_cmd:
-    input_topic: '/{robot_name}/actuators/thruster_strb_cmd'  # From captain (FloatsamTopics.THRUSTER_STRB_CMD)
-    output_topic: '/floatsam/hardware/thruster_strb_cmd'  # PLACEHOLDER - To hardware driver (absolute)
+    input_topic: '/{robot_name}/actuators/thruster_strb_cmd'
     msg_type: 'std_msgs/Float32'
     
-  thruster_port_fb:
-    input_topic: '/floatsam/hardware/thruster_port_fb'  # PLACEHOLDER - From hardware (absolute)
-    output_topic: 'smarc/actuators/thruster_port_fb'  # To SMARC standard (relative, gets robot namespace)
-    msg_type: 'std_msgs/Float32'
+  # The unified output for PX4 
+  px4_motors:
+    output_topic: '/fmu/in/actuator_motors'
+    msg_type: 'px4_msgs/ActuatorMotors'
     
-  thruster_strb_fb:
-    input_topic: '/floatsam/hardware/thruster_strb_fb'  # PLACEHOLDER - From hardware (absolute)
-    output_topic: 'smarc/actuators/thruster_strb_fb'  # To SMARC standard (relative, gets robot namespace)
-    msg_type: 'std_msgs/Float32'
+
+  # NO FEEDBACK TOPICS - ESC doesn't provide direct feedback on thruster commands
+  # thruster_port_fb:
+  #   input_topic: '/{robot_name}/hardware/thruster_port_fb'  # PLACEHOLDER - From hardware (absolute)
+  #   output_topic: 'smarc/actuators/thruster_port_fb'  # To SMARC standard (relative, gets robot namespace)
+  #   msg_type: 'std_msgs/Float32'
+    
+  # thruster_strb_fb:
+  #   input_topic: '/{robot_name}/hardware/thruster_strb_fb'  # PLACEHOLDER - From hardware (absolute)
+  #   output_topic: 'smarc/actuators/thruster_strb_fb'  # To SMARC standard (relative, gets robot namespace)
+  #   msg_type: 'std_msgs/Float32'
 
 # Payload
 payload:
