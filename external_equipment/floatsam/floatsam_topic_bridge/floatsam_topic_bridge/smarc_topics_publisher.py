@@ -11,6 +11,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 import math
 import importlib
+from rclpy.qos import qos_profile_sensor_data
 
 # ROS message types
 from sensor_msgs.msg import NavSatFix, Imu, FluidPressure, Range, Image, PointCloud2
@@ -54,8 +55,11 @@ class SmarcTopicsPublisher(Node):
         self.latest_odom = None
         self.latest_gps_left = None
         self.latest_gps_right = None
-        self.latest_rtk_left = None
-        self.latest_rtk_right = None
+        self.latest_rtk_position = None
+        self.is_receiving_rtk_heading = False
+        self.latest_rtk_heading = None
+        self.latest_port_cmd = 0.0
+        self.latest_strb_cmd = 0.0
         
         # Create publishers for derived values (with vehicle namespace)
         self.heading_pub = self.create_publisher(Float32, f'{self.robot_name}/smarc/heading', 10)
@@ -124,54 +128,77 @@ class SmarcTopicsPublisher(Node):
             return f'{self.robot_name}/{topic}'
         
         # GPS sensors (dual)
+        # GPS Left Example
         if 'gps_left' in sensors:
-            self.create_subscription(NavSatFix, sensors['gps_left']['input_topic'], 
-                                     self._gps_left_callback, 10)
-            self.gps_left_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['gps_left']['output_topic']), 10)
-            self.get_logger().info(f'  GPS Left: {sensors["gps_left"]["input_topic"]} → {namespaced_topic(sensors["gps_left"]["output_topic"])}')
-        
+            # Dynamically load the correct class (NavSatFix for Sim, SensorGps for Real)
+            msg_class = self._get_message_class(sensors['gps_left']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['gps_left']['input_topic'], 
+                                     self._gps_left_callback, qos_profile_sensor_data)
+            
+            self.gps_left_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['gps_left']['output_topic']), qos_profile_sensor_data)
+            
         if 'gps_right' in sensors:
-            self.create_subscription(NavSatFix, sensors['gps_right']['input_topic'], 
-                                     self._gps_right_callback, 10)
-            self.gps_right_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['gps_right']['output_topic']), 10)
+            # Dynamically load the correct class (NavSatFix for Sim, SensorGps for Real)
+            msg_class = self._get_message_class(sensors['gps_right']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['gps_right']['input_topic'], 
+                                     self._gps_right_callback, qos_profile_sensor_data)
+            self.gps_right_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['gps_right']['output_topic']), qos_profile_sensor_data)
             self.get_logger().info(f'  GPS Right: {sensors["gps_right"]["input_topic"]} → {namespaced_topic(sensors["gps_right"]["output_topic"])}')
         
         # RTK GPS (high precision)
-        if 'rtk_left' in sensors:
-            self.create_subscription(NavSatFix, sensors['rtk_left']['input_topic'], 
-                                     self._rtk_left_callback, 10)
-            self.rtk_left_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['rtk_left']['output_topic']), 10)
-            self.get_logger().info(f'  RTK Left: {sensors["rtk_left"]["input_topic"]} → {namespaced_topic(sensors["rtk_left"]["output_topic"])}')
+        if 'rtk_position' in sensors:
+            msg_class = self._get_message_class(sensors['rtk_position']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['rtk_position']['input_topic'], 
+                                     self._rtk_position_callback, 10)
+            self.rtk_position_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['rtk_position']['output_topic']), 10)
+            self.get_logger().info(f'  RTK Position: {sensors["rtk_position"]["input_topic"]} → {namespaced_topic(sensors["rtk_position"]["output_topic"])}')
         
-        if 'rtk_right' in sensors:
-            self.create_subscription(NavSatFix, sensors['rtk_right']['input_topic'], 
-                                     self._rtk_right_callback, 10)
-            self.rtk_right_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['rtk_right']['output_topic']), 10)
-            self.get_logger().info(f'  RTK Right: {sensors["rtk_right"]["input_topic"]} → {namespaced_topic(sensors["rtk_right"]["output_topic"])}')
+        if 'rtk_heading' in sensors:
+            msg_class = self._get_message_class(sensors['rtk_heading']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['rtk_heading']['input_topic'], 
+                                     self._rtk_heading_callback, 10)
+            self.rtk_heading_pub = self.create_publisher(NavSatFix, namespaced_topic(sensors['rtk_heading']['output_topic']), 10)
+            self.get_logger().info(f'  RTK heading: {sensors["rtk_heading"]["input_topic"]} → {namespaced_topic(sensors["rtk_heading"]["output_topic"])}')
         
         # IMU (raw data only, heading comes from odom)
         if 'imu' in sensors:
-            self.create_subscription(Imu, sensors['imu']['input_topic'], self._imu_callback, 10)
-            self.imu_pub = self.create_publisher(Imu, namespaced_topic(sensors['imu']['output_topic']), 10)
+            # Dynamically load the correct class (Imu for Sim, SensorImu for Real)
+            msg_class = self._get_message_class(sensors['imu']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['imu']['input_topic'], self._imu_callback, 10)
+            self.imu_pub = self.create_publisher(Imu, namespaced_topic(sensors['imu']['output_topic']), qos_profile_sensor_data)
             self.get_logger().info(f'  IMU (raw): {sensors["imu"]["input_topic"]} → {namespaced_topic(sensors["imu"]["output_topic"])}')
         
         # Depth Pressure
         if 'depth_pressure' in sensors:
-            self.create_subscription(FluidPressure, sensors['depth_pressure']['input_topic'], 
+            # Dynamically load the correct class (FluidPressure for Sim, SensorFluidPressure for Real)
+            msg_class = self._get_message_class(sensors['depth_pressure']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['depth_pressure']['input_topic'], 
                                      self._depth_callback, 10)
-            self.depth_pub = self.create_publisher(Float32, namespaced_topic(sensors['depth_pressure']['output_topic']), 10)
+            self.depth_pub = self.create_publisher(Float32, namespaced_topic(sensors['depth_pressure']['output_topic']), qos_profile_sensor_data)
             self.get_logger().info(f'  Depth: {sensors["depth_pressure"]["input_topic"]} → {namespaced_topic(sensors["depth_pressure"]["output_topic"])}')
         
         # DVL
         if 'dvl' in sensors:
-            self.create_subscription(Range, sensors['dvl']['input_topic'], self._dvl_callback, 10)
-            self.dvl_pub = self.create_publisher(Range, namespaced_topic(sensors['dvl']['output_topic']), 10)
+            # Dynamically load the correct class (Range for Sim, SensorDvl for Real)
+            msg_class = self._get_message_class(sensors['dvl']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['dvl']['input_topic'], self._dvl_callback, 10)
+            self.dvl_pub = self.create_publisher(Range, namespaced_topic(sensors['dvl']['output_topic']), qos_profile_sensor_data)
             self.get_logger().info(f'  DVL: {sensors["dvl"]["input_topic"]} → {namespaced_topic(sensors["dvl"]["output_topic"])}')
         
         # Leak sensor
         if 'leak' in sensors:
-            self.create_subscription(Bool, sensors['leak']['input_topic'], self._leak_callback, 10)
-            self.leak_pub = self.create_publisher(Bool, namespaced_topic(sensors['leak']['output_topic']), 10)
+            # Dynamically load the correct class (Bool for Sim, SensorLeak for Real)
+            msg_class = self._get_message_class(sensors['leak']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['leak']['input_topic'], self._leak_callback, 10)
+            self.leak_pub = self.create_publisher(msg_class, namespaced_topic(sensors['leak']['output_topic']), qos_profile_sensor_data)
             self.get_logger().info(f'  Leak: {sensors["leak"]["input_topic"]} → {namespaced_topic(sensors["leak"]["output_topic"])}')
         
         # Odometry (computes heading, course, speed, latlon)
@@ -183,26 +210,42 @@ class SmarcTopicsPublisher(Node):
             odom_config = None
             
         if odom_config:
-            self.create_subscription(Odometry, odom_config['input_topic'], self._odom_callback, 10)
-            self.odom_pub = self.create_publisher(Odometry, namespaced_topic(odom_config['output_topic']), 10)
+            # Dynamically load the correct class (Odometry for Sim, SensorOdometry for Real)
+            msg_class = self._get_message_class(odom_config['msg_type'])
+            
+            self.create_subscription(msg_class, odom_config['input_topic'], self._odom_callback, 10)
+            self.odom_pub = self.create_publisher(msg_class, namespaced_topic(odom_config['output_topic']), qos_profile_sensor_data)
             self.get_logger().info(f'  Odom: {odom_config["input_topic"]} → {namespaced_topic(odom_config["output_topic"])}')
             self.get_logger().info(f'  ↳ Also computing heading, course, speed, and latlon from best GPS')
         
         # Battery
         if 'battery' in sensors:
-            self.create_subscription(Float32, sensors['battery']['input_topic'], 
+            # Dynamically load the correct class (Float32 for Sim, SensorBattery for Real)
+            msg_class = self._get_message_class(sensors['battery']['msg_type'])
+            
+            self.create_subscription(msg_class, sensors['battery']['input_topic'], 
                                      self._battery_callback, 10)
-            self.battery_pub = self.create_publisher(Float32, namespaced_topic(sensors['battery']['output_topic']), 10)
+            self.battery_pub = self.create_publisher(Float32, namespaced_topic(sensors['battery']['output_topic']), qos_profile_sensor_data)
             self.get_logger().info(f'  Battery: {sensors["battery"]["input_topic"]} → {namespaced_topic(sensors["battery"]["output_topic"])}')
         
-        # Actuators (passthrough with dynamic typing)
-        for actuator_name, config in actuators.items():
-            msg_class = self._get_message_class(config['msg_type'])
-            if msg_class:
-                pub = self.create_publisher(msg_class, namespaced_topic(config['output_topic']), 10)
-                self.create_subscription(msg_class, config['input_topic'], 
-                                        self._create_passthrough_callback(pub), 10)
-                self.get_logger().info(f'  Actuator {actuator_name}: {config["input_topic"]} → {namespaced_topic(config["output_topic"])}')
+        # --- Actuators (Coupled vs Decoupled Logic) ---
+        if 'thruster_port_cmd' in actuators and 'thruster_strb_cmd' in actuators:
+            # Always subscribe to the separate input commands
+            self.create_subscription(Float32, actuators['thruster_port_cmd']['input_topic'], 
+                                     self._port_cmd_callback, 10)
+            self.create_subscription(Float32, actuators['thruster_strb_cmd']['input_topic'], 
+                                     self._strb_cmd_callback, 10)
+            
+            if self.use_sim:
+                # SIMULATION: Publish to decoupled topics
+                self.sim_port_pub = self.create_publisher(Float32, namespaced_topic(actuators['thruster_port_cmd']['output_topic']), 10)
+                self.sim_strb_pub = self.create_publisher(Float32, namespaced_topic(actuators['thruster_strb_cmd']['output_topic']), 10)
+                self.get_logger().info('  Actuators: Bridged as DECOUPLED (Sim Mode)')
+            else:
+                # REAL HARDWARE: Publish to coupled PX4 array
+                msg_class = self._get_message_class(actuators['px4_motors']['msg_type'])
+                self.px4_motors_pub = self.create_publisher(msg_class, actuators['px4_motors']['output_topic'], qos_profile_sensor_data)
+                self.get_logger().info('  Actuators: Bridged as COUPLED (PX4 Mode)')
         
         # Payload sensors (passthrough with dynamic typing)
         for payload_name, config in payload.items():
@@ -210,49 +253,115 @@ class SmarcTopicsPublisher(Node):
             if msg_class:
                 pub = self.create_publisher(msg_class, namespaced_topic(config['output_topic']), 10)
                 self.create_subscription(msg_class, config['input_topic'], 
-                                        self._create_passthrough_callback(pub), 10)
+                                        self._create_passthrough_callback(pub), qos_profile_sensor_data)
                 self.get_logger().info(f'  Payload {payload_name}: {config["input_topic"]} → {namespaced_topic(config["output_topic"])}')
     
-    def _gps_left_callback(self, msg: NavSatFix):
-        """Store and publish GPS left"""
-        self.latest_gps_left = msg
-        self.gps_left_pub.publish(msg)
+    def _port_cmd_callback(self, msg: Float32):
+        self.latest_port_cmd = msg.data
+        self._publish_actuators()
+
+    def _strb_cmd_callback(self, msg: Float32):
+        self.latest_strb_cmd = msg.data
+        self._publish_actuators()
+
+    def _publish_actuators(self):
+        """Sends commands as either separate topics (Sim) or one array (PX4)"""
+        if self.use_sim:
+            # Decoupled
+            port_msg = Float32()
+            port_msg.data = self.latest_port_cmd
+            strb_msg = Float32()
+            strb_msg.data = self.latest_strb_cmd
+            
+            self.sim_port_pub.publish(port_msg)
+            self.sim_strb_pub.publish(strb_msg)
+        else:
+            # Coupled for PX4
+            px4_msg = self._get_message_class('px4_msgs/ActuatorMotors')()
+            px4_msg.control = [0.0] * 12 # Initialize empty array
+            
+            # Map port and strb to the correct PX4 motor indexes (check which indexes)
+            px4_msg.control[0] = float(self.latest_port_cmd)
+            px4_msg.control[1] = float(self.latest_strb_cmd)
+            
+            self.px4_motors_pub.publish(px4_msg)
+
+    def _gps_left_callback(self, msg):
+        """Translate PX4 SensorGps into standard ROS 2 NavSatFix"""
+        if self.use_sim:
+            std_msg = msg
+        else:
+            std_msg = NavSatFix()
+            # PX4 stores lat/lon as integers (degrees * 1e7)
+            std_msg.latitude = msg.lat / 1e7
+            std_msg.longitude = msg.lon / 1e7
+            # PX4 stores altitude in millimeters
+            std_msg.altitude = msg.alt / 1000.0
+            
+        self.latest_gps_left = std_msg
+        self.gps_left_pub.publish(std_msg)
         self._publish_best_gps()
     
-    def _gps_right_callback(self, msg: NavSatFix):
-        """Store and publish GPS right"""
-        self.latest_gps_right = msg
-        self.gps_right_pub.publish(msg)
+    def _gps_right_callback(self, msg):
+        """Translate PX4 SensorGps into standard ROS 2 NavSatFix"""
+        if self.use_sim:
+            std_msg = msg
+        else:
+            std_msg = NavSatFix()
+            # PX4 stores lat/lon as integers (degrees * 1e7)
+            std_msg.latitude = msg.lat / 1e7
+            std_msg.longitude = msg.lon / 1e7
+            # PX4 stores altitude in millimeters
+            std_msg.altitude = msg.alt / 1000.0
+            
+        self.latest_gps_right = std_msg
+        self.gps_right_pub.publish(std_msg)
         self._publish_best_gps()
     
-    def _rtk_left_callback(self, msg: NavSatFix):
-        """Store and publish RTK left"""
-        self.latest_rtk_left = msg
-        self.rtk_left_pub.publish(msg)
+    def _rtk_position_callback(self, msg: NavSatFix):
+        """Store and publish RTK position"""
+        self.latest_rtk_position = msg
+        self.rtk_position_pub.publish(msg)
         self._publish_best_gps()
     
-    def _rtk_right_callback(self, msg: NavSatFix):
-        """Store and publish RTK right"""
-        self.latest_rtk_right = msg
-        self.rtk_right_pub.publish(msg)
-        self._publish_best_gps()
+    def _rtk_heading_callback(self, msg):
+        """Store and publish RTK heading, and lock out Odometry heading"""
+        
+        self.is_receiving_rtk_heading = True 
+        heading_msg = Float32()
+        heading_msg.data = float(msg.data) 
+        self.heading_pub.publish(heading_msg)
     
     def _publish_best_gps(self):
-        """Publish best available GPS to smarc/latlon (RTK preferred)"""
-        # Priority: RTK > GPS
-        best_gps = self.latest_rtk_left or self.latest_rtk_right or \
-                   self.latest_gps_left or self.latest_gps_right
+        """Publish best available GPS POSITION to smarc/latlon"""
+        # For the map, we ONLY care about the physical position, not the heading.
+        # Priority: RTK Position > Main PX4 Left GPS > Main PX4 Right GPS
+        best_position = self.latest_rtk_position or self.latest_gps_left or self.latest_gps_right
         
-        if best_gps:
+        if best_position:
             geopoint = GeoPoint()
-            geopoint.latitude = best_gps.latitude
-            geopoint.longitude = best_gps.longitude
-            geopoint.altitude = best_gps.altitude
+            geopoint.latitude = best_position.latitude
+            geopoint.longitude = best_position.longitude
+            geopoint.altitude = best_position.altitude
             self.latlon_pub.publish(geopoint)
     
-    def _imu_callback(self, msg: Imu):
-        """Pass through raw IMU data (heading comes from odom)"""
-        self.imu_pub.publish(msg)
+    def _imu_callback(self, msg):
+        """Translate PX4 SensorCombined into standard ROS 2 Imu"""
+        if self.use_sim:
+            std_msg = msg
+        else:
+            std_msg = Imu()
+            # Gyro (Angular Velocity) in rad/s
+            std_msg.angular_velocity.x = float(msg.gyro_rad[0])
+            std_msg.angular_velocity.y = float(msg.gyro_rad[1])
+            std_msg.angular_velocity.z = float(msg.gyro_rad[2])
+            
+            # Accelerometer (Linear Acceleration) in m/s^2
+            std_msg.linear_acceleration.x = float(msg.accelerometer_m_s2[0])
+            std_msg.linear_acceleration.y = float(msg.accelerometer_m_s2[1])
+            std_msg.linear_acceleration.z = float(msg.accelerometer_m_s2[2])
+            
+        self.imu_pub.publish(std_msg)
     
     def _depth_callback(self, msg: FluidPressure):
         """Convert pressure to depth (assuming seawater)"""
@@ -279,20 +388,47 @@ class SmarcTopicsPublisher(Node):
         if msg.data:
             self.get_logger().warn('  LEAK DETECTED!')
     
-    def _odom_callback(self, msg: Odometry):
-        """Handle odometry and compute derived values (heading, course, speed)"""
-        # Store for later use
-        self.latest_odom = msg
+    def _odom_callback(self, msg):
+        """Handle odometry from either Simulator (Standard) or PX4 (px4_msgs)"""
         
-        # Publish odometry
-        self.odom_pub.publish(msg)
+        if self.use_sim:
+            # SIMULATION: Message is already standard nav_msgs/Odometry
+            std_msg = msg
+        else:
+            # REAL HARDWARE: Translate px4_msgs/VehicleOdometry to standard
+            std_msg = Odometry()
+            
+            # Position (x, y, z)
+            std_msg.pose.pose.position.x = float(msg.position[0])
+            std_msg.pose.pose.position.y = float(msg.position[1])
+            std_msg.pose.pose.position.z = float(msg.position[2])
+            
+            # Orientation Quaternion (PX4 order is w, x, y, z)
+            std_msg.pose.pose.orientation.w = float(msg.q[0])
+            std_msg.pose.pose.orientation.x = float(msg.q[1])
+            std_msg.pose.pose.orientation.y = float(msg.q[2])
+            std_msg.pose.pose.orientation.z = float(msg.q[3])
+            
+            # Velocity (vx, vy, vz)
+            std_msg.twist.twist.linear.x = float(msg.velocity[0])
+            std_msg.twist.twist.linear.y = float(msg.velocity[1])
+            std_msg.twist.twist.linear.z = float(msg.velocity[2])
         
+        # Store and publish the standard message
+        self.latest_odom = std_msg
+        self.odom_pub.publish(std_msg)
+        
+        # Compute heading and speed based on the standard message
+        self._compute_and_publish_derived_odom(std_msg) 
+        
+    def _compute_and_publish_derived_odom(self, std_msg: Odometry):
+        """Helper function to calculate SMaRC derived values"""
         # Extract heading from odom orientation (quaternion to yaw)
         orientation_list = [
-            msg.pose.pose.orientation.x,
-            msg.pose.pose.orientation.y,
-            msg.pose.pose.orientation.z,
-            msg.pose.pose.orientation.w
+            std_msg.pose.pose.orientation.x,
+            std_msg.pose.pose.orientation.y,
+            std_msg.pose.pose.orientation.z,
+            std_msg.pose.pose.orientation.w
         ]
         _, _, yaw = euler_from_quaternion(orientation_list)
         
@@ -301,13 +437,15 @@ class SmarcTopicsPublisher(Node):
         if heading_deg < 0:
             heading_deg += 360.0
         
-        heading_msg = Float32()
-        heading_msg.data = 90 - heading_deg
-        self.heading_pub.publish(heading_msg)
+        # Only publish Odometry heading if RTK heading is missing
+        if not self.is_receiving_rtk_heading:
+            heading_msg = Float32()
+            heading_msg.data = 90.0 - heading_deg
+            self.heading_pub.publish(heading_msg)
         
         # Compute and publish course (direction of travel in degrees)
-        vx = msg.twist.twist.linear.x
-        vy = msg.twist.twist.linear.y
+        vx = std_msg.twist.twist.linear.x
+        vy = std_msg.twist.twist.linear.y
         course_rad = math.atan2(vy, vx)
         course_deg = math.degrees(course_rad)
         if course_deg < 0:
@@ -323,9 +461,17 @@ class SmarcTopicsPublisher(Node):
         speed_msg.data = speed
         self.speed_pub.publish(speed_msg)
     
-    def _battery_callback(self, msg: Float32):
-        """Pass through battery percentage"""
-        self.battery_pub.publish(msg)
+    def _battery_callback(self, msg):
+        """Translate PX4 BatteryStatus into a standard Float32 percentage"""
+        std_msg = Float32()
+        
+        if self.use_sim:
+            std_msg.data = msg.data
+        else:
+            # Convert 0.0-1.0 ratio to 0-100%
+            std_msg.data = float(msg.remaining * 100.0)
+            
+        self.battery_pub.publish(std_msg)
 
 
 def main(args=None):
