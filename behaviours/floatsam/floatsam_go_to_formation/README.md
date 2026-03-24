@@ -1,85 +1,72 @@
 # floatsam_go_to_formation
 
-A ROS 2 action server that commands a fleet of Floatsam USVs into a geographic formation using a **py_trees behavior tree**. Each robot is assigned an optimal formation slot via the Hungarian algorithm, and the fleet then navigates and loiters at the assigned geopoints with the requested headings.
+A ROS 2 action server that commands a fleet of Floatsam USVs into a geographic formation using a **py_trees behavior tree**. Each robot is assigned an optimal formation slot via the Hungarian algorithm, and the fleet navigates to and loiters at the assigned geopoints with synchronized speeds and active collision avoidance.
 
 ---
 
 ## Overview
 
-```
-Goal (JSON via BaseAction)
-    └── formation_points: [{latitude, longitude, heading}, ...]
+    Goal (JSON via BaseAction)
+        └── formation_points: [{latitude, longitude, heading}, ...]
 
-Action server: /go_to_formation
-Action type:   smarc_action_base/action/BaseAction
-```
+    Action server: /go_to_formation
+    Action type:   smarc_action_base/action/BaseAction
 
-When a goal is accepted the server:
+When a goal is accepted, the server:
 
-1. Waits for all robots to publish odometry.
+1. Waits for all robots to publish valid odometry in the map frame.
 2. Builds a py_trees behavior tree and ticks it at **10 Hz**.
-3. Runs the **Hungarian assignment** to map each robot to the nearest formation slot.
-4. Handles **collision avoidance** (deconfliction with priority/counter logic).
-5. Sends `move_to_path` action goals to drive each robot to its assigned slot.
-6. Once every robot arrives, sends `loiter_with_heading` action goals to hold position and orientation.
+3. Runs the **Hungarian algorithm** to optimally assign each robot to a formation slot.
+4. Continuously evaluates **collision avoidance**, determining right-of-way priority and executing evasion maneuvers when necessary.
+5. Sends `move_path` action goals to drive each robot to its assigned slot, dynamically overriding speeds to ensure synchronized arrival.
+6. Once every robot arrives, sends `loiter_heading` action goals to hold position and orientation for 400 seconds.
+
+---
+
+## Core Functionalities
+
+### 1. Optimal Target Assignment
+The `HungarianAssignment` behavior maps each robot to a formation point. It computes a cost matrix based on the squared Euclidean distance between every robot's current position and every goal point, ensuring the fleet travels the minimum collective distance.
+
+### 2. Collision Avoidance Policy
+Unlike previous versions, collision avoidance is now fully implemented with a multi-step deconfliction policy:
+* **Detection (`CollisionFreeCheck`)**: The system continuously calculates the distance between robots. If another robot enters the defined `collision_radius`, a potential collision is flagged.
+* **Right-of-Way (`PriorityCheck`)**: When a collision risk is detected, priority is determined by projecting both robots' positions onto a line relative to the approach direction to the formation center. The robot with the smaller projection distance gets priority, while the other must yield.
+* **Yielding (`Wait` & `CounterCheck`)**: The yielding robot pauses by publishing a zero-velocity setpoint. A counter tracks how long the robot has been waiting.
+* **Evasion (`MoveToSide`)**: If the yielding robot waits longer than the `max_num_collisions` threshold, it breaks the deadlock. It evaluates clearance on its left and right sides, selects the safest evasion point 3.0 meters away, and sends a constant-speed `move_to` goal to maneuver out of the way.
+
+### 3. Synchronized Speed Control
+To ensure the fleet arrives simultaneously, the `MoveToPathClient` dynamically scales each robot's speed. 
+* The system identifies the robot furthest from its goal and commands it to travel at `max_velocity`.
+* All other robots scale their velocity proportionally based on their relative distance to their respective goals (e.g., `(my_distance / max_distance) * max_velocity`).
+
+### 4. Arrival and Loitering
+The `AllArrivalCheck` behavior monitors the loiter feedback for all robots. Once every robot confirms arrival, the `LoiterWithHeadingClient` executes, keeping the robots at their designated coordinates and headings for 400 seconds.
 
 ---
 
 ## Behavior Tree Structure
 
-```
-MainTree  [Sequence]
-├── FirstSelector  [Selector]
-│   ├── HaveGoal              – succeeds if assignments already exist
-│   └── HungarianAssignment   – assigns robots to slots via optimal assignment
-├── SecondSelector  [Selector]
-│   ├── CollisionCheck        – succeeds if no collision risk
-│   └── ThirdSelector  [Selector]
-│       ├── PriorityCheck     – succeeds if this robot has right-of-way
-│       └── FourthSelector  [Selector]
-│           ├── FirstSequence  [Sequence]
-│           │   ├── CounterCheck
-│           │   └── MoveToSide
-│           └── Wait
-└── SecondSequence  [Sequence]
-    ├── FifthSelector  [Selector]
-    │   ├── ArrivalCheck        – succeeds if robot already at target
-    │   └── MoveToPathClient    – calls move_to_path action server
-    └── SixthSelector  [Selector]
-        ├── AllArrivalCheck          – succeeds when every robot has arrived
-        └── LoiterWithHeadingClient  – calls loiter_with_heading action server
-```
-
----
-
-## Package Structure
-
-```
-floatsam_go_to_formation/
-├── floatsam_go_to_formation/
-│   ├── __init__.py
-│   ├── behaviours.py                       # All py_trees behaviour classes
-│   ├── floatsam_common.py                  # FloatSam helper (TF, geo conversion)
-│   └── floatsam_go_to_formation_server.py  # BTActionServer node (entry point)
-├── launch/
-│   └── floatsam_go_to_formation.launch.py
-├── package.xml
-└── setup.py
-```
-
----
-
-## Dependencies
-
-| Dependency | Purpose |
-|---|---|
-| `rclpy` | ROS 2 Python client |
-| `py_trees` / `py_trees_ros` | Behavior tree framework |
-| `smarc_action_base` | `GentlerActionServer` + `BaseAction` message type |
-| `smarc_utilities` | `georef_utils.convert_latlon_to_utm` |
-| `scipy` | `linear_sum_assignment` (Hungarian algorithm) |
-| `nav_msgs`, `geometry_msgs`, `geographic_msgs` | ROS 2 message types |
-| `tf2_ros`, `tf2_geometry_msgs` | Coordinate frame transforms |
+    MainTree  [Sequence]
+    ├── FirstSelector  [Selector]
+    │   ├── HaveGoal              – succeeds if assignments already exist
+    │   └── HungarianAssignment   – assigns robots to slots via optimal assignment
+    ├── SecondSelector  [Selector]
+    │   ├── CollisionFreeCheck    – succeeds if no collision risk
+    │   └── ThirdSelector  [Selector]
+    │       ├── PriorityCheck     – succeeds if this robot has right-of-way
+    │       └── FourthSelector  [Selector]
+    │           ├── FirstSequence  [Sequence]
+    │           │   ├── CounterCheck
+    │           │   └── MoveToSide
+    │           └── Wait          – stops the robot if yielding
+    └── SecondSequence  [Sequence]
+        ├── FifthSelector  [Selector]
+        │   ├── ArrivalCheck        – succeeds if robot already at target
+        │   └── MoveToPathClient    – calls move_path with synchronized speed
+        └── SixthSelector  [Selector]
+            ├── AllArrivalCheck          – succeeds when every robot has arrived
+            └── LoiterWithHeadingClient  – calls loiter_heading action server
 
 ---
 
@@ -87,182 +74,41 @@ floatsam_go_to_formation/
 
 | Parameter | Default | Description |
 |---|---|---|
-| `robot_name` | `floatsam_usv` | Base robot name. Robots are expected as `<robot_name>_0`, `<robot_name>_1`, … |
+| `robot_name` | `floatsam_usv_0` | Base name of the robot executing the server. |
 | `num_robots` | `3` | Total number of USVs in the fleet. IDs are `0 .. num_robots-1`. |
+| `collision_radius` | `1.0` | Distance (meters) to trigger collision avoidance. |
+| `max_num_collisions` | `3` | Number of wait cycles before triggering a side evasion maneuver. |
+| `waypoints_step_size` | `0.5` | Distance (meters) between generated path waypoints. |
+| `max_velocity` | `2.0` | Maximum speed override for the fleet. |
 
 ---
 
-## Subscribed Topics
+## Running and Activating the Server
 
-| Topic | Type | Description |
-|---|---|---|
-| `/<robot_name>_N/smarc/odom_gt` | `nav_msgs/Odometry` | Ground-truth odometry for each robot (one per robot) |
-
----
-
-## Action Server
-
-| Name | Type | Description |
-|---|---|---|
-| `/go_to_formation` | `smarc_action_base/action/BaseAction` | Accepts a JSON-encoded formation goal |
-
-### Goal Format
-
-The goal is a JSON string carried in the `BaseAction.Goal.goal.data` field:
-
-```json
-{
-  "formation_points": [
-    { "latitude": <float>, "longitude": <float>, "heading": <float> },
-    { "latitude": <float>, "longitude": <float>, "heading": <float> },
-    ...
-  ]
-}
-```
-
-| Field | Type | Range | Description |
-|---|---|---|---|
-| `latitude` | float | −90 … 90 | WGS-84 latitude in decimal degrees |
-| `longitude` | float | −180 … 180 | WGS-84 longitude in decimal degrees |
-| `heading` | float | 0 … 360 | Desired robot heading in degrees (0 = North, 90 = East) |
-
-The list must contain **exactly as many points as there are robots** (`num_robots`). The server uses an optimal assignment so the order of points does not matter.
-
----
-
-## Build
+### 1. Launch the Server
 
 ```bash
-cd <workspace_root>
-colcon build --packages-select floatsam_go_to_formation
-source install/setup.bash
-```
-
----
-
-## Running
-
-### Via launch file (recommended)
-
-```bash
-# Default: floatsam_usv_0 and floatsam_usv_1  (num_robots=2)
+# Default parameters
 ros2 launch floatsam_go_to_formation floatsam_go_to_formation.launch.py
 
-# Three robots with a custom base name
+# Custom fleet size
 ros2 launch floatsam_go_to_formation floatsam_go_to_formation.launch.py \
     robot_name:=floatsam_usv \
-    num_robots:=3
+    num_robots:=5
+
 ```
+### 2. Send a Formation Mission (Terminal Command)
 
-### Directly
+You can activate the server and assign a mission using the ROS 2 CLI. The goal string must be a YAML representation containing the JSON payload. Ensure the number of coordinate sets exactly matches num_robots.
 
-```bash
-ros2 run floatsam_go_to_formation floatsam_go_to_formation_action_server \
-    --ros-args -p robot_name:=floatsam_usv -p num_robots:=3
-```
+#### Example: Five-Robot Formation Mission
 
----
+ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 58.8408761736411, \"longitude\": 17.6513505304756, \"heading\": 90.0}, {\"latitude\": 58.8410112590599, \"longitude\": 17.6515537892541, \"heading\": 90.0}, {\"latitude\": 58.8409725040742, \"longitude\": 17.6519172840096, \"heading\": 90.0}, {\"latitude\": 58.8408817099164, \"longitude\": 17.6522351146409, \"heading\": 90.0}, {\"latitude\": 58.8406603387832, \"longitude\": 17.6523177281681, \"heading\": 90.0}]}'}}"
 
-## Sending Goals — CLI Examples
+Cancel a Running Goal
 
-All examples use `ros2 action send_goal`. The goal string is a YAML representation of the `BaseAction.Goal` message; the `data` field contains the JSON payload.
-
-### Two robots — simple triangle formation
-
-```bash
-ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 58.8405360306434, \"longitude\": 17.6520998616085, \"heading\": 0.0}, {\"latitude\": 58.8405960738135, \"longitude\": 17.6518292606662, \"heading\": 0.0}]}'}}"
-```
-
-### Three robots — line abreast, facing east (90°)
-
-```bash
-ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 58.8405258584503, \"longitude\": 17.6516992496307, \"heading\": 90.0}, {\"latitude\": 58.8405428888343, \"longitude\": 17.6518663726091, \"heading\": 90.0}, {\"latitude\": 58.8405878677775, \"longitude\": 17.6517617503888, \"heading\": 90.0}]}'}}"
-```
-
-### Three robots — wedge formation, facing north (0°)
-
-```bash
-ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 57.7092, \"longitude\": 11.9452, \"heading\": 0.0}, {\"latitude\": 57.7090, \"longitude\": 11.9450, \"heading\": 0.0}, {\"latitude\": 57.7090, \"longitude\": 11.9454, \"heading\": 0.0}]}'}}"
-```
-
-### Cancel a running goal
-
-```bash
-# List active goals first
+#### List active goals first to find the UUID
 ros2 action show /floatsam_usv_0/go_to_formation
 
-# Cancel by goal UUID (replace <UUID> with actual value from above)
+#### Cancel by goal UUID
 ros2 action cancel /floatsam_usv_0/go_to_formation <UUID>
-```
-
----
-
-## Calling the Server from Python
-
-```python
-import json
-import rclpy
-from rclpy.action import ActionClient
-from rclpy.node import Node
-from smarc_action_base.action import BaseAction
-from std_msgs.msg import String
-
-
-class FormationClient(Node):
-    def __init__(self):
-        super().__init__('formation_client')
-        self._client = ActionClient(self, BaseAction, 'go_to_formation')
-
-    def send_formation(self, formation_points: list[dict]):
-        """
-        formation_points: list of dicts with keys latitude, longitude, heading.
-        E.g. [{'latitude': 57.71, 'longitude': 11.95, 'heading': 90.0}, ...]
-        """
-        goal_msg = BaseAction.Goal()
-        goal_msg.goal = String(data=json.dumps({'formation_points': formation_points}))
-
-        self._client.wait_for_server()
-        future = self._client.send_goal_async(goal_msg)
-        future.add_done_callback(self._goal_response_callback)
-
-    def _goal_response_callback(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().error('Goal rejected')
-            return
-        self.get_logger().info('Goal accepted')
-        result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(
-            lambda f: self.get_logger().info(f'Result: {f.result().result.result.data}')
-        )
-
-
-def main():
-    rclpy.init()
-    client = FormationClient()
-
-    # Three-robot line formation facing east
-    client.send_formation([
-        {'latitude': 57.7089, 'longitude': 11.9450, 'heading': 90.0},
-        {'latitude': 57.7090, 'longitude': 11.9450, 'heading': 90.0},
-        {'latitude': 57.7091, 'longitude': 11.9450, 'heading': 90.0},
-    ])
-
-    rclpy.spin(client)
-    rclpy.shutdown()
-
-
-if __name__ == '__main__':
-    main()
-```
-
----
-
-## Notes
-
-- The number of formation points **must equal `num_robots`**. Providing more or fewer points will result in goal rejection.
-- Heading `0°` = North, `90°` = East, `180°` = South, `270°` = West.
-- The server waits up to **5 seconds** at start for all robot odometry topics to publish before accepting the goal. If any robot is missing its position data the goal is aborted.
-- Collision avoidance (`CollisionCheck`, `PriorityCheck`, `MoveToSide`) and individual arrival checking (`ArrivalCheck`, `AllArrivalCheck`) are currently scaffolded and marked as `TODO`.
-
-

@@ -50,7 +50,6 @@ class FloatSam():
         floatsam_in_odom.pose = msg_odom.pose.pose
         try:
             self._floatsam_in_map = do_transform_pose_stamped(floatsam_in_odom, self._odom_to_map_tf)
-            #print(f"Floatsam in map: {self._floatsam_in_map}")
         except Exception as e:
             self._node.get_logger().error(f"Error transforming drone pose from odom to map: {e}")
 
@@ -77,7 +76,6 @@ class FloatSam():
                 timeout=Duration(seconds=1)
             )
         except Exception as e:
-            # first fallback: try generic 'utm' frame which some setups publish
             self._node.get_logger().warning(
                 f"Lookup for transform from '{source_frame}' to '{self.MAP_FRAME}' failed: {e}. Trying fallback 'utm' frame."
             )
@@ -90,7 +88,6 @@ class FloatSam():
                 )
                 self._node.get_logger().info("Fallback to 'utm' frame successful.")
             except Exception as e2:
-                # give a more informative error for callers
                 err_msg = (
                     f"Failed to find a transform from any UTM frame to '{self.MAP_FRAME}'. "
                     f"Tried '{source_frame}' and 'utm'. Original error: {e}. Fallback error: {e2}"
@@ -99,5 +96,5 @@ class FloatSam():
                 raise
 
         in_map = do_transform_pose_stamped(in_utm_pose, tf)
-        in_map.pose.position.z = gp.altitude  # ensure altitude is preserved
+        in_map.pose.position.z = gp.altitude  
         return in_map

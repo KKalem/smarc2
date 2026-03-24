@@ -34,45 +34,34 @@ class BTActionServer(Node):
     def __init__(self):
         super().__init__('go_to_formation_bt_action_server')
 
-        # robot_name is the full name of THIS robot (e.g. floatsam_usv_0)
-        # robot_base_name is derived from it by stripping the _N suffix (e.g. floatsam_usv)
-        # and is used to enumerate all robots in the fleet
         self.declare_parameter('robot_name', 'floatsam_usv_0')
         self.this_robot_name = self.get_parameter('robot_name').value
         self.robot_base_name = '_'.join(self.this_robot_name.split('_')[:-1])
         self._floatsam = FloatSam(self, self.this_robot_name)
 
-        # Declare and get num_robots parameter; IDs are 0 .. num_robots-1
         self.declare_parameter('num_robots', 3)
         num_robots = self.get_parameter('num_robots').value
         self.robot_ids = list(range(num_robots))
 
-        # Declare and get collision_radius parameter
         self.declare_parameter('collision_radius', 1.0)  # default 
         self.collision_radius = self.get_parameter('collision_radius').value
 
-        # Declare and get max_num_collisions parameter
         self.declare_parameter('max_num_collisions', 3)  # default
         self.max_num_collisions = self.get_parameter('max_num_collisions').value
 
-        # Declare and get waypoints_step_size parameter
         self.declare_parameter('waypoints_step_size', 0.5)  # default
         self.waypoints_step_size = self.get_parameter('waypoints_step_size').value
 
-        # Declare and get max_velocity parameter
         self.declare_parameter('max_velocity', 2.0)  # default
         self.max_velocity = self.get_parameter('max_velocity').value
 
-        # Declare and get last_point_tolerance_move_path parameter
         self.declare_parameter('last_point_tolerance_move_path', 0.5)
         self.last_point_tolerance_move_path = self.get_parameter('last_point_tolerance_move_path').value
         
         self.get_logger().info(f'Robot "{self.this_robot_name}" managing {len(self.robot_ids)} robots (base: "{self.robot_base_name}", IDs: {self.robot_ids})')
         
-        # Initialize blackboard and register robot positions dictionary
         self._setup_blackboard()
         
-        # Subscribe to odometry for each robot
         self._odom_subscribers = {}
         self._loiter_subscribers = {}
         self._setup_odometry_subscriptions()
@@ -86,19 +75,16 @@ class BTActionServer(Node):
             self._prepare_loop,
             self._loop_inner,
             self._give_feedback,
-            loop_frequency=10  # Ticks tree at 10 Hz
+            loop_frequency=10  
         )
 
-        # Tree will be created in _prepare_loop
         self.tree = None
 
     def _setup_loiter_subscriptions(self):
         """Subscribe to loiter heading feedback topic for each robot."""
         for robot_id in self.robot_ids:
-            # Topic format: /<robot_base_name>_X/loiter_heading_fb
             loiter_topic = f'/{self.robot_base_name}_{robot_id}/loiter_heading_fb'
             
-            # Create subscription with a lambda that captures robot_id
             subscriber = self.create_subscription(
                 FloatStamped,
                 loiter_topic,
@@ -116,11 +102,9 @@ class BTActionServer(Node):
         or 0.0 (not heading to loiter point). This is stored in the blackboard
         keyed by robot name, similar to robot positions.
         """
-        # Update blackboard
         blackboard = py_trees.blackboard.Client(name="Server")
         blackboard.register_key(key="loiter_heading_fb", access=py_trees.common.Access.WRITE)
         
-        # Update the specific robot's loiter heading feedback value, keyed by full name (e.g. floatsam_usv_0)
         loiter_fb = blackboard.loiter_heading_fb
         loiter_fb[f'{self.robot_base_name}_{robot_id}'] = msg.data
         blackboard.loiter_heading_fb = loiter_fb
@@ -164,7 +148,6 @@ class BTActionServer(Node):
         blackboard.last_point_tolerance_move_path = self.last_point_tolerance_move_path
         blackboard.loiter_heading_fb = {}
         
-        # Initialize positions to None for each robot, keyed by full name (e.g. floatsam_usv_0)
         for robot_id in self.robot_ids:
             blackboard.robot_positions[f'{self.robot_base_name}_{robot_id}'] = None
             blackboard.loiter_heading_fb[f'{self.robot_base_name}_{robot_id}'] = None
@@ -174,10 +157,8 @@ class BTActionServer(Node):
     def _setup_odometry_subscriptions(self):
         """Subscribe to odometry topic for each robot."""
         for robot_id in self.robot_ids:
-            # Topic format: /<robot_base_name>_X/smarc/odom
             odom_topic = f'/{self.robot_base_name}_{robot_id}/smarc/odom'
             
-            # Create subscription with a lambda that captures robot_id
             subscriber = self.create_subscription(
                 Odometry,
                 odom_topic,
@@ -198,12 +179,10 @@ class BTActionServer(Node):
         compare coordinates from two different frames, leading to wrong
         speed overrides, wrong waypoints and false arrival declarations.
         """
-        # Extract pose from odometry message (in odom frame)
         pose_in_odom = PoseStamped()
         pose_in_odom.header = msg.header
         pose_in_odom.pose = msg.pose.pose
 
-        # Transform from odom frame to map frame
         try:
             pose_in_map = do_transform_pose_stamped(
                 pose_in_odom, self._floatsam._odom_to_map_tf
@@ -214,16 +193,13 @@ class BTActionServer(Node):
             )
             return
 
-        # Update blackboard
         blackboard = py_trees.blackboard.Client(name="Server")
         blackboard.register_key(key="robot_positions", access=py_trees.common.Access.WRITE)
         
-        # Update the specific robot's position, keyed by full name (e.g. floatsam_usv_0)
         positions = blackboard.robot_positions
         positions[f'{self.robot_base_name}_{robot_id}'] = pose_in_map
         blackboard.robot_positions = positions
  
-        # Recompute robot cluster centre from all non-None positions
         valid = [p for p in positions.values() if p is not None]
         if valid:
             cx = sum(p.pose.position.x for p in valid) / len(valid)
@@ -232,7 +208,6 @@ class BTActionServer(Node):
             blackboard.robot_cluster_centre = [cx, cy]
             self._update_approach_direction()
 
-        # TODO: if robot_id does not send odometry for a while, set its position to None or mark it as offline
 
     def create_behavior_tree(self):
         root = py_trees.composites.Sequence(name="MainTree", memory=False)
@@ -270,14 +245,12 @@ class BTActionServer(Node):
         root.add_children([selector_1, selector_2, sequence_3])
 
         tree = py_trees_ros.trees.BehaviourTree(root)
-        # py_trees calls signal.signal() during setup, which only works in the main thread.
-        # Temporarily patch it to silently ignore the ValueError when running in a worker thread.
         _original_signal = signal.signal
         def _safe_signal(signum, handler):
             try:
                 return _original_signal(signum, handler)
             except ValueError:
-                pass  # Not in main thread — skip signal registration
+                pass  
         signal.signal = _safe_signal
         try:
             tree.setup(node=self, timeout=15.0)
@@ -304,7 +277,6 @@ class BTActionServer(Node):
     
 
         try:
-            # Extract formation points from goal
             formation_points = goal_request.get('formation_points', None)
             
             
@@ -320,32 +292,27 @@ class BTActionServer(Node):
                 self.get_logger().error("'formation_points' list is empty")
                 return False
             
-            # Validate each point
             for i, point in enumerate(formation_points):
                 if not isinstance(point, dict):
                     self.get_logger().error(f"Point {i} is not a dictionary")
                     return False
                 
-                # Check required fields
                 required_fields = ['latitude', 'longitude', 'heading']
                 for field in required_fields:
                     if field not in point:
                         self.get_logger().error(f"Point {i} missing required field: '{field}'")
                         return False
                 
-                # Validate latitude (-90 to 90)
                 lat = float(point['latitude'])
                 if lat < -90 or lat > 90:
                     self.get_logger().error(f"Point {i}: Invalid latitude {lat} (must be -90 to 90)")
                     return False
                 
-                # Validate longitude (-180 to 180)
                 lon = float(point['longitude'])
                 if lon < -180 or lon > 180:
                     self.get_logger().error(f"Point {i}: Invalid longitude {lon} (must be -180 to 180)")
                     return False
                 
-                # Validate heading (0 to 360)
                 heading = float(point['heading'])
                 if heading < 0 or heading > 360:
                     self.get_logger().error(f"Point {i}: Invalid heading {heading} (must be 0 to 360 degrees)")
@@ -353,7 +320,6 @@ class BTActionServer(Node):
             
             self.get_logger().info(f"Validated {len(formation_points)} formation points")
             
-            # Write goal to blackboard as a dict keyed by 'goal_0', 'goal_1', ...
             blackboard = py_trees.blackboard.Client(name="ActionServer")
             blackboard.register_key(key="formation_points", access=py_trees.common.Access.WRITE)
             blackboard.register_key(key="formation_points_latlon", access=py_trees.common.Access.WRITE)
@@ -370,12 +336,10 @@ class BTActionServer(Node):
                     'heading': float(formation_points[i]['heading'])
                 }
 
-            # Assign the whole dictionary to the blackboard at once
             blackboard.formation_points = new_formation_points
             blackboard.formation_points_latlon = new_formation_points_latlon
 
-            # Compute and store formation cluster centre
-            pts = list(new_formation_points.values())  # each is [x, y]
+            pts = list(new_formation_points.values())  
             fcx = sum(p[0] for p in pts) / len(pts)
             fcy = sum(p[1] for p in pts) / len(pts)
             blackboard.register_key(key="formation_cluster_centre", access=py_trees.common.Access.WRITE)
@@ -383,7 +347,7 @@ class BTActionServer(Node):
             self.get_logger().info(f"Formation cluster centre: [{fcx:.2f}, {fcy:.2f}]")
             self._update_approach_direction()
 
-            return True  # Goal is valid
+            return True  
             
         except Exception as e:
             self.get_logger().error(f"Failed to parse goal: {e}")
@@ -407,7 +371,7 @@ class BTActionServer(Node):
 
         dx = fc[0] - rc[0]
         dy = fc[1] - rc[1]
-        direction = np.arctan2(dy, dx)  # radians, range (-pi, pi]
+        direction = np.arctan2(dy, dx)  
         bb.approach_direction = direction
         self.get_logger().debug(
             f"Approach direction updated: {np.degrees(direction):.1f}° "
@@ -435,7 +399,6 @@ class BTActionServer(Node):
         while (time.time() - start_time) < timeout_seconds:
             robot_positions = blackboard.robot_positions
             
-            # Check if all robots have non-None positions
             missing_robots = [rid for rid, pos in robot_positions.items() if pos is None]
             
             if len(missing_robots) == 0:
@@ -448,7 +411,6 @@ class BTActionServer(Node):
             )
             time.sleep(0.5)
         
-        # Timeout reached
         robot_positions = blackboard.robot_positions
         missing_robots = [rid for rid, pos in robot_positions.items() if pos is None]
         
@@ -465,13 +427,11 @@ class BTActionServer(Node):
         """Create the tree once before loop starts."""
         self.get_logger().info('Building behavior tree...')
         
-        # Check that all robots have valid position data
         if not self._check_all_robots_have_positions():
             self.get_logger().error('Cannot build behavior tree: missing robot positions')
             self.tree = None  # Set to None to signal failure
             return
         
-        # All robots have positions, proceed with creating the tree
         self.tree = self.create_behavior_tree()
         self.get_logger().info('Behavior tree created successfully')
 
@@ -485,23 +445,19 @@ class BTActionServer(Node):
             False = FAILURE (goal failed)
             None = RUNNING (keep going)
         """
-        # Check if tree was created successfully
         if self.tree is None:
             self.get_logger().error('Behavior tree was not created - aborting goal')
-            return False  # FAILURE
+            return False  
         
-        # Tick the tree once
         self.tree.tick()
 
-        # Check status
         if self.tree.root.status == py_trees.common.Status.SUCCESS:
             self.get_logger().info('Go To Formation Behavior tree SUCCEDED!')
-            return True  # SUCCESS
+            return True  
         elif self.tree.root.status == py_trees.common.Status.FAILURE:
             self.get_logger().warning('Go To Formation Behavior tree FAILED!')
-            return False  # FAILURE
+            return False  
         else:
-            # Still RUNNING
             return None
 
     def _give_feedback(self) -> str:

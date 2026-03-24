@@ -11,7 +11,6 @@ import traceback
 
 from .floatsam_common import FloatSam
 
-#from std_msgs.msg import Float32
 from smarc_msgs.msg import FloatStamped
 from floatsam_msgs.msg import Topics as FloatsamTopics
 from floatsam_interfaces.srv import GetSafeVelocity
@@ -36,7 +35,6 @@ class MoveToActionFloatSam():
                  node: Node):
         self._node : Node = node
         
-        # Get robot name from node parameter
         self._robot_name : str = self._node.get_parameter('robot_name').value
         
         self.MAP_FRAME : str = self._robot_name + '/map'
@@ -45,11 +43,10 @@ class MoveToActionFloatSam():
         self._node.get_logger().info(f"FloatSam move_to server initialized for robot: {self._robot_name}")
 
         self._default_goal_tolerance = 1  
-        self._default_speed_threshold = 10  # start slowing down when within 10m of goal 
+        self._default_speed_threshold = 10   
 
         self.declare_node_parameters()
 
-        # --- PID parameters and threshold for captain ---
         self._loiter_yaw_p_gain = str(self._node.get_parameter('yaw_p_gain').value)
         self._loiter_yaw_i_gain = str(self._node.get_parameter('yaw_i_gain').value)
         self._loiter_yaw_d_gain = str(self._node.get_parameter('yaw_d_gain').value)
@@ -63,24 +60,19 @@ class MoveToActionFloatSam():
         self._loiter_velocity_i_gain = str(self._node.get_parameter('velocity_i_gain').value)
         self._loiter_velocity_d_gain = str(self._node.get_parameter('velocity_d_gain').value)
 
-        # Publishers use FloatsamTopics constants (relative paths get robot namespace)
         self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.YAW_SETPOINT, 10)
 
         self._speed_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10)
 
         self._move_on_place_publisher = self._node.create_publisher(Bool, 'move_on_place', 1)
 
-        # RVO safe velocity service client
         self._rvo_client = self._node.create_client(GetSafeVelocity, 'get_safe_velocity')
 
-        # publisher for captain parameters 
         self._captain_parameters_publisher = self._node.create_publisher(
             String, 
             'captain_parameters',
             10
         )
-
-        # create the gentler action server to expose 'move_to'
         self._as = GentlerActionServer(
             node,
             "move_to",
@@ -92,8 +84,6 @@ class MoveToActionFloatSam():
             loop_frequency=10
         )
 
-        # timer: when the action server starts, print the floatsam position read from odom_gt
-        # tries every 0.5s and times out after 5 seconds
         self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
 
@@ -147,7 +137,6 @@ class MoveToActionFloatSam():
         self._node.get_logger().info(f"Goal request received: {goal_request}")
 
         try:
-            # first transform the latlon goal into UTM
             gp : GeoPoint = GeoPoint()
             gp.latitude = goal_request['waypoint']['latitude']
             gp.longitude = goal_request['waypoint']['longitude']
@@ -276,7 +265,6 @@ class MoveToActionFloatSam():
             self._node.get_logger().warning(f'safe_angle:{safe_angle}, error_heading:{error_heading}')
             if rvo_response.change == True:
                 move_on_place_msg.data = False
-            #self._node.get_logger().warning(f'move_on_place_msg.data:{move_on_place_msg.data}') 
         else:
             self._node.get_logger().warning('RVO service not available, using preferred velocity directly')
             safe_speed = speed
@@ -296,7 +284,6 @@ class MoveToActionFloatSam():
         angle_msg = FloatStamped()
         angle_msg.header.stamp = now
         angle_msg.data = 0.5  
-        #self._angle_reference_publisher.publish(angle_msg)
         self._publish_captain_parametrs()
         
         return None
@@ -328,9 +315,6 @@ class MoveToActionFloatSam():
 
 def main(args=None):
     rclpy.init(args=args)
-
-    # Namespace and robot_name are set by the launch file via --ros-args.
-    # Declare robot_name here so the node can read its own scoped parameter.
     node = Node("floatsam_move_to_action_server")
     node.declare_parameter('robot_name', 'floatsam_usv')
 

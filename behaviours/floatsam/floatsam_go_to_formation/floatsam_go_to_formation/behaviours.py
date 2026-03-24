@@ -121,7 +121,6 @@ class CollisionFreeCheck(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("collision_streak", access=py_trees.common.Access.WRITE)
         self.blackboard.register_key("currently_colliding_with", access=py_trees.common.Access.WRITE)
 
-        # Initialize the blackboard variable
         self.blackboard.currently_colliding_with = ""
         self.this_robot_name = self.blackboard.this_robot_name
         self.collision_radius = self.blackboard.collision_radius
@@ -153,16 +152,13 @@ class CollisionFreeCheck(py_trees.behaviour.Behaviour):
         for key, position in robot_positions.items():
             if key != self.this_robot_name:
                 distance = self.compute_distance(self.this_position, position)
-                # Check if actually colliding (within radius)
                 if distance <= self.collision_radius:
-                    # Only add to list if it's not the one we're already handling
                     if self.blackboard.currently_colliding_with != key:
                         self.node.get_logger().info(f"{self.name}: Robot {self.this_robot_name} is colliding with {key}")
                         self.blackboard.colliding_list.append(key)
                     else:
                         self.node.get_logger().info(f"{self.name}: Already handling collision with {key}")
                 else:
-                    # Not colliding, reset collision streak for this robot
                     if key in self.blackboard.collision_streak:
                         self.blackboard.collision_streak[key].is_colliding = False 
 
@@ -199,7 +195,6 @@ class PriorityCheck(py_trees.behaviour.Behaviour):
         self.blackboard.register_key("currently_colliding_with", access=py_trees.common.Access.READ)
 
         
-        # signed projection distance along the approach line from formation centre
         self.fc = self.blackboard.formation_cluster_centre
         self.this_robot_name = self.blackboard.this_robot_name
         self.not_priority = False 
@@ -236,8 +231,6 @@ class PriorityCheck(py_trees.behaviour.Behaviour):
                    self.blackboard.collision_streak[robot].is_colliding = True 
                    self.blackboard.collision_streak[robot].counter += 1
                    
-                # Check if the other robot has already reached its goal
-                # If so, force counter to 3 to trigger move_to_side
                 if self._has_robot_reached_goal(robot):
                     self.node.get_logger().info(
                         f"{self.this_robot_name}: {robot} has reached its goal, "
@@ -272,12 +265,10 @@ class PriorityCheck(py_trees.behaviour.Behaviour):
             if robot_pos is None or goal_xy is None:
                 return False
             
-            # Calculate distance to goal
             dx = robot_pos.pose.position.x - goal_xy[0]
             dy = robot_pos.pose.position.y - goal_xy[1]
             dist = np.sqrt(dx * dx + dy * dy)
             
-            # Use tolerance (same as in move_path)
             tolerance = float(self.blackboard.last_point_tolerance_move_path) * 3.0
             
             return dist <= tolerance
@@ -290,8 +281,6 @@ class PriorityCheck(py_trees.behaviour.Behaviour):
             
     def calculate_proj_dist(self, this_position):
         rx, ry = this_position.pose.position.x, this_position.pose.position.y
-        # signed projection distance along the approach line 
-        #proj = np.abs((rx - self.fc[0]) * np.cos(self.theta) + (ry - self.fc[1]) * np.sin(self.theta))
         proj = np.abs((ry - self.fc[1]) * np.sin(self.theta))
         return proj
     
@@ -346,9 +335,7 @@ class MoveToSide(py_trees.behaviour.Behaviour):
     robot does not decelerate on approach).
     """
 
-    # How far (metres) from the current position the evasion point is placed
     EVASION_DISTANCE = 3.0
-    # Tolerance (metres) for the evasion waypoint
     EVASION_TOLERANCE = 2.0
 
     def __init__(self, name="MoveToSide"):
@@ -384,7 +371,6 @@ class MoveToSide(py_trees.behaviour.Behaviour):
     def update(self):
         """Compute collision-free side, send evasion goal via move_to."""
 
-        # ── 1. Send goal (first tick) ────────────────────────────────────────
         if self._send_goal_future is None:
             my_name = self.blackboard.this_robot_name
             my_pos = self.blackboard.robot_positions.get(my_name)
@@ -395,27 +381,10 @@ class MoveToSide(py_trees.behaviour.Behaviour):
             rx = my_pos.pose.position.x
             ry = my_pos.pose.position.y
 
-            # Determine colliding robots
             colliding_list = self.blackboard.colliding_list
             if not colliding_list:
                 self.node.get_logger().warn(f"{self.name}: No colliding robots")
                 return py_trees.common.Status.FAILURE
-
-            # # Average direction toward all colliding robots
-            # dx_sum, dy_sum = 0.0, 0.0
-            # for other_name in colliding_list:
-            #     other_pos = self.blackboard.robot_positions.get(other_name)
-            #     if other_pos is not None:
-            #         dx_sum += other_pos.pose.position.x - rx
-            #         dy_sum += other_pos.pose.position.y - ry
-
-            
-
-            # if abs(dx_sum) < 1e-6 and abs(dy_sum) < 1e-6:
-            #     # Robots are on top of each other; pick an arbitrary direction
-            #     dx_sum, dy_sum = 1.0, 0.0
-
-            # Heading toward collision cluster
 
 
             other_pos = self.blackboard.robot_positions.get(self.blackboard.currently_colliding_with)
@@ -437,19 +406,6 @@ class MoveToSide(py_trees.behaviour.Behaviour):
                 evasion_point = np.array([rx + self.EVASION_DISTANCE * np.cos(right_heading),
                                     ry + self.EVASION_DISTANCE * np.sin(right_heading)])
 
-            # Two candidate evasion headings: ±45° from collision direction
-            # left_heading = heading_to_collision + np.pi / 4
-            # right_heading = heading_to_collision - np.pi / 4
-
-            # left_point = np.array([rx + self.EVASION_DISTANCE * np.cos(left_heading),
-            #                        ry + self.EVASION_DISTANCE * np.sin(left_heading)])
-            # right_point = np.array([rx + self.EVASION_DISTANCE * np.cos(right_heading),
-            #                         ry + self.EVASION_DISTANCE * np.sin(right_heading)])
-
-            # # Pick the side that is furthest from all other robots (least collision risk)
-            # evasion_point = self._pick_free_side(left_point, right_point)
-
-            # Convert evasion point to lat/lon ros2 action send_goal /floatsam_usv_0/go_to_formation smarc_msgs/action/BaseAction "{goal: {data: '{\"formation_points\": [{\"latitude\": 58.8405258584503, \"longitude\": 17.6516992496307, \"heading\": 90.0}, {\"latitude\": 58.8405428888343, \"longitude\": 17.6518663726091, \"heading\": 90.0}, {\"latitude\": 58.8405878677775, \"longitude\": 17.6517617503888, \"heading\": 90.0}]}'}}"for the move_to goal
             try:
                 gp = self._floatsam.convert_map_point_to_geopoint(float(evasion_point[0]),
                                                                    float(evasion_point[1]))
@@ -482,14 +438,12 @@ class MoveToSide(py_trees.behaviour.Behaviour):
             )
             return py_trees.common.Status.RUNNING
 
-        # ── 2. Waiting for acceptance ────────────────────────────────────────
         if not self._goal_accepted:
             if self._goal_done:  # rejected
                 self.node.get_logger().warn(f"{self.name}: Evasion goal rejected")
                 return py_trees.common.Status.FAILURE
             return py_trees.common.Status.RUNNING
 
-        # ── 3. Goal finished ─────────────────────────────────────────────────
         if self._goal_done:
             if self._goal_succeeded:
                 self.node.get_logger().info(f"{self.name}: Evasion move complete")
@@ -504,7 +458,6 @@ class MoveToSide(py_trees.behaviour.Behaviour):
                 self.node.get_logger().warn(f"{self.name}: Evasion move failed")
                 return py_trees.common.Status.FAILURE
 
-        # ── 4. Still running ─────────────────────────────────────────────────
         return py_trees.common.Status.RUNNING
 
     def terminate(self, new_status):
@@ -513,7 +466,6 @@ class MoveToSide(py_trees.behaviour.Behaviour):
             self.blackboard.currently_colliding_with = ""
             self._goal_handle.cancel_goal_async()
 
-    # ── helpers ──────────────────────────────────────────────────────────────
 
     def _pick_free_side(self, left_point: np.ndarray, right_point: np.ndarray) -> np.ndarray:
         """Return whichever candidate evasion point is further from all other robots."""
@@ -540,7 +492,6 @@ class MoveToSide(py_trees.behaviour.Behaviour):
             self.node.get_logger().info(f"{self.name}: Evading RIGHT (clearance L={left_clearance:.2f}, R={right_clearance:.2f})")
             return right_point
 
-    # ── action client callbacks ──────────────────────────────────────────────
 
     def _goal_response_cb(self, future):
         goal_handle = future.result()
@@ -653,7 +604,7 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
     def setup(self, **kwargs):
         """Called once when the tree is set up. Creates the ROS action client and publisher."""
         self.node = kwargs['node']
-        self._floatsam = kwargs['node']._floatsam  # FloatSam instance on the server node
+        self._floatsam = kwargs['node']._floatsam  
         self._action_client = ActionClient(self.node, BaseAction, 'move_path')
         self._speed_pub = self.node.create_publisher(
             FloatStamped, FloatsamTopics.SPEED_OVERRIDE, 10
@@ -672,7 +623,6 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
 
     def update(self):
         self.node.get_logger().info(f"{self.name}: Update begin")
-        # ── 1. Send goal (first tick) ────────────────────────────────────────────
         if self._send_goal_future is None:
             my_name     = self.blackboard.this_robot_name
             assignments = self.blackboard.robot_assignments
@@ -704,7 +654,6 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
             self.node.get_logger().info(f"{self.name}: Goal sent to move_path ({my_goal_key})")
             return py_trees.common.Status.RUNNING
 
-        # ── 2. Waiting for server to accept the goal ─────────────────────────────
         if not self._goal_accepted:
             self.node.get_logger().info(f"{self.name}: Waiting for goal acceptance...")
             if self._goal_done:  # rejected
@@ -712,7 +661,6 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
                 return py_trees.common.Status.FAILURE
             return py_trees.common.Status.RUNNING
 
-        # ── 3. Goal finished ─────────────────────────────────────────────────────
         if self._goal_done:
             self.node.get_logger().info(f"{self.name}: Goal finished with status: {'SUCCEEDED' if self._goal_succeeded else 'FAILED'}")
             return (
@@ -721,7 +669,6 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
                 else py_trees.common.Status.FAILURE
             )
 
-        # ── 4. Goal running: publish coordinated speed override ──────────────────
         if not self._decelerating:
             self.node.get_logger().info(f"{self.name}: Goal running, publishing speed override...")
             speed = self._compute_speed_override()
@@ -768,7 +715,6 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
         self._goal_succeeded = result.success
         self._goal_done      = True
         if self._goal_succeeded:
-            # Safety check: verify actual distance before declaring arrival
             try:
                 my_name  = self.blackboard.this_robot_name
                 goal_key = self.blackboard.robot_assignments[my_name]
@@ -793,8 +739,6 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
                 )
             self.blackboard.this_robot_arrived_flag = True
 
-    # ── Waypoint generation ───────────────────────────────────────────────────────
-
     def _build_waypoints(self, my_name: str, my_goal_key: str) -> list | None:
         """
         Build an ordered list of waypoints from the robot's current map position to
@@ -804,8 +748,8 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
         """
         #try:
         step     = float(self.blackboard.waypoints_step_size)
-        goal_xy  = self.blackboard.formation_points[my_goal_key]        # [x, y] in map
-        my_pos   = self.blackboard.robot_positions[my_name]             # PoseStamped in map
+        goal_xy  = self.blackboard.formation_points[my_goal_key]        
+        my_pos   = self.blackboard.robot_positions[my_name]             
 
         if my_pos is None:
             self.node.get_logger().warn(f"{self.name}: No position for {my_name}")
@@ -822,7 +766,7 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
         waypoints = []
 
         if dist > step:
-            n_steps = int(dist / step)  # number of intermediate points
+            n_steps = int(dist / step)  
             for k in range(1, n_steps + 1):
                 t   = k * step / dist
                 wx  = sx + t * dx
@@ -831,10 +775,9 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
                 waypoints.append({
                     "latitude":  gp.latitude,
                     "longitude": gp.longitude,
-                    "tolerance": step * 0.75   # generous tolerance for intermediate points
+                    "tolerance": step * 0.75   
                 })
 
-        # Always add the exact final goal
         final_latlon = self.blackboard.formation_points_latlon[my_goal_key]
         waypoints.append({
             "latitude":  final_latlon["latitude"],
@@ -848,11 +791,6 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
         )
         return waypoints
 
-        #except Exception as e:
-        #    self.node.get_logger().error(f"{self.name}: _build_waypoints error: {e}")
-        #    return None
-
-    # ── Speed logic ───────────────────────────────────────────────────────────────
 
     def _compute_speed_override(self) -> float | None:
         """
@@ -878,18 +816,16 @@ class MoveToPathClient(py_trees.behaviour.Behaviour):
                     self.node.get_logger().info(f"CIAOOO distances: {distances[robot_name]:.2f}m for {robot_name}")
 
             if not distances or my_name not in distances:
-                return max_vel  # fallback: go at max speed
+                return max_vel  
 
             max_dist = max(distances.values())
             my_dist  = distances[my_name]
 
             if max_dist < 0.01:
-                return 0.0  # everyone is already at their goal
+                return 0.0  
 
             self.node.get_logger().warn(f"{my_name}'s velocity: {(my_dist / max_dist) * max_vel}, distance to goal: {my_dist:.2f}m, max distance: {max_dist:.2f}m")
 
-
-            # speed_i = (d_i / d_max) * max_vel  →  same ETA for all robots
             return (my_dist / max_dist) * max_vel
 
         except Exception as e:
@@ -914,9 +850,6 @@ class AllArrivalCheck(py_trees.behaviour.Behaviour):
 
     def update(self):
         """Check if all agents have arrived."""
-        # TODO: Implement logic to check all agents' arrival status
-        # Read robot_positions and robot_assignments
-        # Check if ALL robots are at their assigned targets
 
         all_arrived_flag = False
         for robot_name, ready in self.blackboard.loiter_heading_fb.items():
@@ -972,7 +905,6 @@ class LoiterWithHeadingClient(py_trees.behaviour.Behaviour):
         """Send goal to loiter_with_heading action server and manage action lifecycle."""
         self.node.get_logger().info(f"{self.name}: Update begin")
         
-        # ── 1. Send goal (first tick) ────────────────────────────────────────────
         if self._send_goal_future is None:
             my_name = self.blackboard.this_robot_name
             assignments = self.blackboard.robot_assignments
@@ -983,7 +915,6 @@ class LoiterWithHeadingClient(py_trees.behaviour.Behaviour):
             
             my_goal_key = assignments[my_name]
             
-            # Get the heading from the formation goal
             formation_points_latlon = self.blackboard.formation_points_latlon
             if my_goal_key not in formation_points_latlon:
                 self.node.get_logger().warn(f"{self.name}: No formation point data for {my_goal_key}")
@@ -996,9 +927,8 @@ class LoiterWithHeadingClient(py_trees.behaviour.Behaviour):
                 self.node.get_logger().warn(f"{self.name}: loiter_heading action server not available")
                 return py_trees.common.Status.FAILURE
             
-            # Create goal message with duration=400 and heading from formation goal
             goal_dict = {
-                'duration': 400,  # 400 seconds
+                'duration': 400,  
                 'heading': heading
             }
             goal_msg = BaseAction.Goal()
@@ -1015,7 +945,6 @@ class LoiterWithHeadingClient(py_trees.behaviour.Behaviour):
             )
             return py_trees.common.Status.RUNNING
         
-        # ── 2. Waiting for server to accept the goal ─────────────────────────────
         if not self._goal_accepted:
             self.node.get_logger().info(f"{self.name}: Waiting for goal acceptance...")
             if self._goal_done:  # rejected
@@ -1023,7 +952,6 @@ class LoiterWithHeadingClient(py_trees.behaviour.Behaviour):
                 return py_trees.common.Status.FAILURE
             return py_trees.common.Status.RUNNING
         
-        # ── 3. Goal finished ─────────────────────────────────────────────────────
         if self._goal_done:
             self.node.get_logger().info(
                 f"{self.name}: Goal finished with status: "
@@ -1035,7 +963,6 @@ class LoiterWithHeadingClient(py_trees.behaviour.Behaviour):
                 else py_trees.common.Status.FAILURE
             )
         
-        # ── 4. Still running ─────────────────────────────────────────────────────
         return py_trees.common.Status.RUNNING
 
     def terminate(self, new_status):

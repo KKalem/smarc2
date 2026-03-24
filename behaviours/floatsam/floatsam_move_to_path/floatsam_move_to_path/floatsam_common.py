@@ -36,7 +36,6 @@ class FloatSam():
                 self._node.get_logger().info(f"Waiting for transform from {self.ODOM_FRAME} to {self.MAP_FRAME}...")
         
 
-        # Subscribe to odometry with robot namespace
         odom_topic = f"/{robot_name}/smarc/odom"
         self._node.create_subscription(Odometry,
                                        odom_topic,
@@ -50,7 +49,6 @@ class FloatSam():
         floatsam_in_odom.pose = msg_odom.pose.pose
         try:
             self._floatsam_in_map = do_transform_pose_stamped(floatsam_in_odom, self._odom_to_map_tf)
-            #print(f"Floatsam in map: {self._floatsam_in_map}")
         except Exception as e:
             self._node.get_logger().error(f"Error transforming drone pose from odom to map: {e}")
 
@@ -64,7 +62,7 @@ class FloatSam():
         in_utm_pose : PoseStamped = PoseStamped()
         in_utm_pose.header = in_utm.header
         in_utm_pose.pose.position = in_utm.point
-        in_utm_pose.pose.position.z = gp.altitude  # keep the altitude from the GeoPoint as is
+        in_utm_pose.pose.position.z = gp.altitude  
 
         self._node.get_logger().info(f"Converting GeoPoint -> UTM frame '{in_utm.header.frame_id}' and then to map '{self.MAP_FRAME}'")
 
@@ -77,7 +75,6 @@ class FloatSam():
                 timeout=Duration(seconds=1)
             )
         except Exception as e:
-            # first fallback: try generic 'utm' frame which some setups publish
             self._node.get_logger().warning(
                 f"Lookup for transform from '{source_frame}' to '{self.MAP_FRAME}' failed: {e}. Trying fallback 'utm' frame."
             )
@@ -90,7 +87,6 @@ class FloatSam():
                 )
                 self._node.get_logger().info("Fallback to 'utm' frame successful.")
             except Exception as e2:
-                # give a more informative error for callers
                 err_msg = (
                     f"Failed to find a transform from any UTM frame to '{self.MAP_FRAME}'. "
                     f"Tried '{source_frame}' and 'utm'. Original error: {e}. Fallback error: {e2}"
@@ -99,5 +95,5 @@ class FloatSam():
                 raise
 
         in_map = do_transform_pose_stamped(in_utm_pose, tf)
-        in_map.pose.position.z = gp.altitude  # ensure altitude is preserved
+        in_map.pose.position.z = gp.altitude  
         return in_map

@@ -11,7 +11,6 @@ import traceback
 
 from .floatsam_common import FloatSam
 
-#from std_msgs.msg import Float32
 from smarc_msgs.msg import FloatStamped
 from floatsam_msgs.msg import Topics as FloatsamTopics
 from geometry_msgs.msg import  PointStamped, PoseStamped
@@ -33,12 +32,10 @@ class MoveToPathActionFloatSam():
                  node: Node):
         self._node : Node = node
         
-        # Get robot name from node parameter
         self._robot_name : str = self._node.get_parameter('robot_name').value
 
         self.declare_node_parameters()
 
-        # --- PID parameters and threshold for captain ---
         self.yaw_p_gain = str(self._node.get_parameter('yaw_p_gain').value)
         self.yaw_i_gain = str(self._node.get_parameter('yaw_i_gain').value)
         self.yaw_d_gain = str(self._node.get_parameter('yaw_d_gain').value)
@@ -58,12 +55,11 @@ class MoveToPathActionFloatSam():
         self._node.get_logger().info(f"FloatSam move_to server initialized for robot: {self._robot_name}")
 
         self._default_goal_tolerance = 1  
-        self._default_speed_threshold = 5  # start slowing down when within 5m of goal
+        self._default_speed_threshold = 5  
         self._decelerating : bool = False
         self._desired_speed : float = 0.0
 
-        # Real-time speed override: behaviours.py publishes here (FloatStamped, m/s).
-        # When messages arrive the value replaces the speed from the action goal.
+        
         self._speed_override : float | None = None
         self._node.create_subscription(
             FloatStamped,
@@ -72,12 +68,10 @@ class MoveToPathActionFloatSam():
             10
         )
 
-        # Publishers use FloatsamTopics constants (relative paths get robot namespace)
         self._yaw_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.YAW_SETPOINT, 10)
 
         self._speed_reference_publisher = self._node.create_publisher(FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10)
 
-        # create the gentler action server to expose 'move_to'
         self._as = GentlerActionServer(
             node,
             "move_path",
@@ -95,8 +89,6 @@ class MoveToPathActionFloatSam():
             10
         )
 
-        # timer: when the action server starts, print the floatsam position read from odom_gt
-        # tries every 0.5s and times out after 5 seconds
         self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
 
@@ -116,7 +108,6 @@ class MoveToPathActionFloatSam():
             return self._speed_override
         if self._goal_speed is not None:
             return self._goal_speed
-        # 'override' mode but topic not yet publishing — hold a safe minimum
         self._node.get_logger().warn("Speed override requested but no topic value received yet, holding 0.0")
         return 0.0
 
@@ -154,7 +145,6 @@ class MoveToPathActionFloatSam():
         self._node.get_logger().info(f"Goal request received: {goal_request} piselli")
 
         try:
-            # 1. PARSING SPEED (Prima del loop, così è disponibile per il log)
             try:
                 self._goal_speed = goal_request.get('speed', 2.0)
                 if self._goal_speed == "standard":
@@ -164,7 +154,6 @@ class MoveToPathActionFloatSam():
                 elif self._goal_speed == "fast":
                     self._goal_speed = 5.0
                 elif self._goal_speed == "override":
-                    # Speed will come exclusively from the SPEED_OVERRIDE topic at runtime.
                     self._goal_speed = None
                     self._node.get_logger().info("Speed mode: override (using real-time topic value)")
                 else:
@@ -173,18 +162,14 @@ class MoveToPathActionFloatSam():
                 self._node.get_logger().info(f"no valid speed, default to 2.0")
                 self._goal_speed = 2.0
 
-            # 2. PARSING WAYPOINTS
             self._goal_in_map=[]
             self._goal_tolerance=[]
-            self.index = 0 # RESETTA L'INDICE!
+            self.index = 0 
 
             waypoints = goal_request['waypoints']
-            # Se per caso arriva un singolo dizionario invece di una lista, mettilo in una lista
             if not isinstance(waypoints, list):
                 waypoints = [waypoints]
 
-            # constant_speed: when True, skip the linear deceleration ramp on
-            # the LAST waypoint and hold goal_speed all the way to tolerance.
             self._constant_speed = bool(goal_request.get('constant_speed', False))
             self._node.get_logger().info(f"Constant speed mode: {self._constant_speed}")
 
@@ -195,7 +180,6 @@ class MoveToPathActionFloatSam():
                 gp.latitude = float(waypoints[i]['latitude'])
                 gp.longitude = float(waypoints[i]['longitude'])
 
-                # USA APPEND, non l'indice [i] che darebbe errore su lista vuota
                 pose_converted = self._floatsam.convert_geopoint_to_map_pose_stamped(gp)
                 self._goal_in_map.append(pose_converted)
 
@@ -234,12 +218,10 @@ class MoveToPathActionFloatSam():
             self._node.get_logger().info("No floatsam position available yet, waiting...")
             return None
         
-        # Controlliamo se abbiamo finito i waypoint
         if self.index >= len(self._goal_in_map):
             self._node.get_logger().info("All waypoints reached! SUCCESS.")
             return True 
 
-        # Usiamo self.index per puntare al waypoint corrente
         i = self.index
 
         goal_position = np.array([self._goal_in_map[i].pose.position.x,
@@ -248,37 +230,26 @@ class MoveToPathActionFloatSam():
         self_position = np.array([self._floatsam.floatsam_in_map.pose.position.x,
                                   self._floatsam.floatsam_in_map.pose.position.y])
 
-    
-        # self._node.get_logger().info(f"Current position: [{self_position[0]:.2f}, {self_position[1]:.2f}]")
-        # self._node.get_logger().info(f"Goal position:    [{goal_position[0]:.2f}, {goal_position[1]:.2f}]")
-        
         goal_error = goal_position - self_position
         goal_error_mag = np.linalg.norm(goal_error)
         self._distance_remaining = float(goal_error_mag)
 
-        # LOGICA CAMBIO WAYPOINT
         if self._distance_remaining <= self._goal_tolerance[i]:
             self._node.get_logger().info(f"Reached waypoint {i} within tolerance {self._goal_tolerance[i]}m")
-            self.index += 1 # PASSA AL PROSSIMO
-            return None # Continua il loop al prossimo tick
+            self.index += 1 
+            return None 
 
-        # LOGICA VELOCITA (Rallenta solo se è l'ultimo waypoint della lista)
         is_last_waypoint = (i == len(self._goal_in_map) - 1)
 
         if (self._distance_remaining <= self._default_speed_threshold) and is_last_waypoint and not self._constant_speed:
-            # slow down when close to FINAL goal (unless constant_speed was requested)
             self._desired_speed = (self._distance_remaining / self._default_speed_threshold) * self.effective_goal_speed
             self._decelerating = True
         else:
             self._desired_speed = self.effective_goal_speed
             self._decelerating = False
-    
-        # self._node.get_logger().info(f"The desired speed is {self._desired_speed:.2f} m/s")
-        
-        #calcuate error heading and speed
+            
         error_heading = float(np.arctan2(goal_error[1], goal_error[0]))
         
-        # self._node.get_logger().info(f"The distance remaining is {self._distance_remaining:.2f} m")
         speed = float(self._desired_speed)
         
         yaw_msg = FloatStamped()

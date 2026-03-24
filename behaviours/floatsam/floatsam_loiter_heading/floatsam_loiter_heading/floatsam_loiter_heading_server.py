@@ -32,7 +32,6 @@ class LoiterActionFloatSam():
         self._node: Node = node
         self.declare_node_parameters()
         
-        # Get robot name from node parameter
         self._robot_name: str = self._node.get_parameter('robot_name').value
         
         self.MAP_FRAME: str = self._robot_name + '/map'
@@ -40,13 +39,11 @@ class LoiterActionFloatSam():
         
         self._node.get_logger().info(f"FloatSam loiter server initialized for robot: {self._robot_name}")
 
-        # Internal configuration (from node parameters)
         self._loiter_tolerance = float(self._node.get_parameter('loiter_tolerance').value)
         self._reposition_tolerance = float(self._node.get_parameter('loiter_reposition_tolerance').value)
         self._loiter_move_to_speed = str(self._node.get_parameter('loiter_move_to_speed').value)
         self._heading_tolerance = float(self._node.get_parameter('heading_tolerance').value)  # degrees
 
-        # --- PID parameters and threshold for captain ---
         self._loiter_yaw_p_gain = float(self._node.get_parameter('yaw_p_gain').value)
         self._loiter_yaw_i_gain = float(self._node.get_parameter('yaw_i_gain').value)
         self._loiter_yaw_d_gain = float(self._node.get_parameter('yaw_d_gain').value)
@@ -66,22 +63,20 @@ class LoiterActionFloatSam():
             f"reposition_tolerance={self._reposition_tolerance}m, move_to_speed={self._loiter_move_to_speed}"
         )
         
-        # State variables
         self._loiter_center_in_map: PoseStamped | None = None
-        self._loiter_center_geopoint: GeoPoint | None = None  # Store original geopoint
-        self._current_gps: GeoPoint | None = None  # Current GPS position from topic
+        self._loiter_center_geopoint: GeoPoint | None = None  
+        self._current_gps: GeoPoint | None = None  
         self._distance_from_center: float | None = None
-        self._current_heading_error: float | None = None  # Difference from target heading
-        self._timeout: float | None = None  # seconds
-        self._start_time: float | None = None  # timestamp when loiter started
-        self._last_reposition_trigger: float = 0.0  # Prevent rapid retriggering
-        self._move_to_goal_handle = None  # Track active move_to goal
-        self._move_to_result_future = None  # Track move_to completion
+        self._current_heading_error: float | None = None  
+        self._timeout: float | None = None  
+        self._start_time: float | None = None  
+        self._last_reposition_trigger: float = 0.0  
+        self._move_to_goal_handle = None  
+        self._move_to_result_future = None  
         self._move_to_pending = False
-        self._position_reached: bool = False  # Track if within tolerance
-        self._heading_reached: bool = False  # Track if heading is correct 
+        self._position_reached: bool = False  
+        self._heading_reached: bool = False   
         
-        # Subscribe to GPS topic to get current lat/lon position
         gps_topic = f"/{self._robot_name}/smarc/latlon"
         self._node.create_subscription(
             GeoPoint,
@@ -92,14 +87,12 @@ class LoiterActionFloatSam():
 
         self._node.get_logger().info(f"Subscribed to GPS: {gps_topic}")
         
-        # Action client to call move_to when out of bounds
         self._move_to_client = ActionClient(
             self._node,
             BaseAction,
             'move_to'
         )
         
-        # Get the full action name for debugging
         action_name = self._node.get_namespace() + '/move_to' if self._node.get_namespace() != '/' else '/move_to'
         self._node.get_logger().info(f"Waiting for move_to action server at: {action_name}")
         server_available = self._move_to_client.wait_for_server(timeout_sec=5.0)
@@ -109,7 +102,6 @@ class LoiterActionFloatSam():
             self._node.get_logger().error(f"move_to action server NOT available at {action_name}! Loiter will not work properly.")
             self._node.get_logger().error("Make sure the floatsam_move_to_action_server is running.")
         
-        # Publishers for direct control (when inside tolerance)
         self._speed_reference_publisher = self._node.create_publisher(
             FloatStamped, FloatsamTopics.VELOCITY_SETPOINT, 10
         )
@@ -128,7 +120,6 @@ class LoiterActionFloatSam():
             10
         )
         
-        # Create the loiter action server
         self._as = GentlerActionServer(
             node,
             "loiter_heading",
@@ -137,10 +128,9 @@ class LoiterActionFloatSam():
             self._prepare_loop,
             self._loop_inner,
             self._give_feedback,
-            loop_frequency=10  # Check position at 10Hz
+            loop_frequency=10  
         )
         
-        # Timer for initial position check
         self._initial_pos_deadline = int(self._node.get_clock().now().nanoseconds * 1e-9) + 5
         self._initial_pos_timer = self._node.create_timer(0.5, self._check_initial_position)
         
@@ -149,7 +139,7 @@ class LoiterActionFloatSam():
         self._node.declare_parameter("loiter_tolerance", 5.0)
         self._node.declare_parameter("loiter_reposition_tolerance", 0.5)
         self._node.declare_parameter("loiter_move_to_speed", 'fast')
-        self._node.declare_parameter("heading_tolerance", 5.0)  # degrees
+        self._node.declare_parameter("heading_tolerance", 5.0)  
 
         self._node.declare_parameter("yaw_p_gain", 0.3)
         self._node.declare_parameter("yaw_i_gain", 0.0)
@@ -202,7 +192,6 @@ class LoiterActionFloatSam():
         self._node.get_logger().info(f"Loiter goal received: {goal_request}")
 
         try:
-            # Parse timeout (only parameter from action goal - standardized convention)
             self._timeout = float(goal_request['duration'])
             self.heading = float(goal_request['heading']) 
             if self.heading < 0 or self.heading > 360:
@@ -211,10 +200,8 @@ class LoiterActionFloatSam():
             
             self._node.get_logger().info(f"Loiter timeout: {self._timeout} seconds")
             
-            # Wait for current position
             if self._floatsam.floatsam_in_map is None:
                 self._node.get_logger().warning("No floatsam position available yet, waiting...")
-                # Give it a moment to receive odometry
                 import time
                 for _ in range(10):
                     if self._floatsam.floatsam_in_map is not None:
@@ -225,12 +212,10 @@ class LoiterActionFloatSam():
                     self._node.get_logger().error("Failed to get current position for loiter center")
                     return False
             
-            # Set loiter center to CURRENT position 
             self._loiter_center_in_map = PoseStamped()
             self._loiter_center_in_map.header = self._floatsam.floatsam_in_map.header
             self._loiter_center_in_map.pose = self._floatsam.floatsam_in_map.pose
             
-            # Get current GPS position from GPS topic (published by topic bridge)
             if self._current_gps is None:
                 self._node.get_logger().warning("No GPS data available yet, waiting...")
                 import time
@@ -243,7 +228,6 @@ class LoiterActionFloatSam():
                     self._node.get_logger().error("Failed to get GPS position for loiter center")
                     return False
             
-            # Use current GPS as loiter center (for move_to repositioning)
             self._loiter_center_geopoint = GeoPoint()
             self._loiter_center_geopoint.latitude = self._current_gps.latitude
             self._loiter_center_geopoint.longitude = self._current_gps.longitude
@@ -270,7 +254,6 @@ class LoiterActionFloatSam():
         """Handle cancellation request - cancel any active move_to goal."""
         self._node.get_logger().info("Loiter cancel requested, stopping...")
         
-        # Cancel active move_to goal if it exists
         if self._move_to_goal_handle is not None:
             self._node.get_logger().info("Cancelling active move_to goal...")
             cancel_future = self._move_to_goal_handle.cancel_goal_async()
@@ -286,7 +269,7 @@ class LoiterActionFloatSam():
     def _prepare_loop(self) -> None:
         """Initialize loop variables."""
         self._distance_from_center = None
-        self._start_time = self.now_time  # Record start time for timeout
+        self._start_time = self.now_time  
         self._last_reposition_trigger = 0.0
         self._move_to_pending = False
         return
@@ -304,7 +287,6 @@ class LoiterActionFloatSam():
             self._node.get_logger().info("No floatsam position available yet, waiting...")
             return None
         
-        # Check timeout (like lolo does)
         elapsed_time = self.now_time - self._start_time
         time_remaining = self._timeout - elapsed_time            
         
@@ -314,15 +296,13 @@ class LoiterActionFloatSam():
                 cancel_future = self._move_to_goal_handle.cancel_goal_async()
                 self._move_to_goal_handle = None
                 self._move_to_pending = False
-            # Timeout reached - check if within tolerance circle with correct heading
             if self._heading_reached and self._position_reached:
                 self._node.get_logger().info(f"Loiter timeout reached ({self._timeout}s) and within tolerance - completing successfully")
-                return True  # Success
+                return True  
             else:
                 self._node.get_logger().warning(f"Loiter timeout reached ({self._timeout}s) but NOT within tolerance (distance={self._distance_from_center:.2f}m, tolerance={self._loiter_tolerance}m) - failing")
-                return False  # Failure
+                return False  
         
-        # Calculate distance
         center_position = np.array([
             self._loiter_center_in_map.pose.position.x,
             self._loiter_center_in_map.pose.position.y
@@ -336,18 +316,15 @@ class LoiterActionFloatSam():
         error_vector = center_position - current_position
         self._distance_from_center = float(np.linalg.norm(error_vector))
         
-        # Calculate current heading error
         orientation = self._floatsam.floatsam_in_map.pose.orientation
         _, _, current_yaw = euler_from_quaternion([
             orientation.x, orientation.y, orientation.z, orientation.w
         ])
         
-        # Calculate heading error in radians, normalize to [-pi, pi]
         heading_error_rad = self.heading - current_yaw
         heading_error_rad = np.arctan2(np.sin(heading_error_rad), np.cos(heading_error_rad))
         self._current_heading_error = np.degrees(abs(heading_error_rad))  # Convert to degrees
         
-        # Update status flags
         if self._distance_from_center <= self._loiter_tolerance:
             self._position_reached = 1
         else:
@@ -365,9 +342,7 @@ class LoiterActionFloatSam():
             f"(tolerance: {self._heading_tolerance}°), "
             f"position_reached: {self._position_reached}, heading_reached: {self._heading_reached}"
         )
-
         
-        # Check if we're outside the tolerance circle
         if self._distance_from_center > self._loiter_tolerance and not self._move_to_pending:
 
             self._node.get_logger().warning(f"Outside loiter tolerance! Triggering move_to to return to center...")
@@ -378,14 +353,10 @@ class LoiterActionFloatSam():
             return None
         
         else:
-            # Inside tolerance circle
-
-            # DEBUG LOG
             self._node.get_logger().info("self.move_to_goal_handle: " + str(self._move_to_goal_handle) + "self._move_to_pending: " + str(self._move_to_pending))
     
             if self._move_to_goal_handle is not None or self._move_to_pending:
                 
-                # move_to is active OR pending - check if it's done
                 if self._move_to_result_future is not None and self._move_to_result_future.done():
                     try:
                         result = self._move_to_result_future.result()
@@ -396,7 +367,7 @@ class LoiterActionFloatSam():
                         
                         self._move_to_goal_handle = None
                         self._move_to_result_future = None
-                        self._move_to_pending = False  # Reset pending flag when done
+                        self._move_to_pending = False  
 
                     except Exception as e:
                         self._node.get_logger().error(f"Error getting move_to result: {e}")
@@ -420,7 +391,6 @@ class LoiterActionFloatSam():
                 self._node.get_logger().error("No loiter center geopoint available")
                 return
             
-            # Create the goal message
             goal_msg = BaseAction.Goal()
             goal_dict = {
                 'waypoint': {
@@ -439,14 +409,13 @@ class LoiterActionFloatSam():
                 f"tolerance={self._reposition_tolerance}m, speed={self._loiter_move_to_speed}"
             )
             
-            # Send goal and track it
             send_future = self._move_to_client.send_goal_async(goal_msg)
             send_future.add_done_callback(self._move_to_goal_response_callback)
             
         except Exception as e:
             self._node.get_logger().error(f"Error triggering move_to: {e}")
             traceback.print_exc()
-            self._move_to_pending = False  # Reset flag in case of error
+            self._move_to_pending = False  
 
     def _move_to_goal_response_callback(self, future):
         """Callback when move_to server accepts/rejects the goal."""
@@ -525,15 +494,12 @@ class LoiterActionFloatSam():
 def main(args=None):
     rclpy.init(args=args)
 
-    # Namespace and robot_name are set by the launch file via --ros-args.
-    # Declare robot_name here so the node can read its own scoped parameter.
     node = Node("floatsam_loiter_heading_action_server")
     node.declare_parameter('robot_name', 'floatsam_usv')
 
     loiter_action = LoiterActionFloatSam(node)
     executor = MultiThreadedExecutor()
     rclpy.spin(node, executor=executor)
-    # Cancel active move_to goal if it exists
     if loiter_action._move_to_goal_handle is not None:
         loiter_action._node.get_logger().info("Cancelling active move_to goal...")
         cancel_future = loiter_action._move_to_goal_handle.cancel_goal_async()

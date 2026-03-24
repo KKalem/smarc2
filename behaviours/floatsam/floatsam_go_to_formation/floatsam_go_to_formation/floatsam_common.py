@@ -50,7 +50,6 @@ class FloatSam():
         floatsam_in_odom.pose = msg_odom.pose.pose
         try:
             self._floatsam_in_map = do_transform_pose_stamped(floatsam_in_odom, self._odom_to_map_tf)
-            #print(f"Floatsam in map: {self._floatsam_in_map}")
         except Exception as e:
             self._node.get_logger().error(f"Error transforming drone pose from odom to map: {e}")
 
@@ -77,7 +76,6 @@ class FloatSam():
                 timeout=Duration(seconds=1)
             )
         except Exception as e:
-            # first fallback: try generic 'utm' frame which some setups publish
             self._node.get_logger().warning(
                 f"Lookup for transform from '{source_frame}' to '{self.MAP_FRAME}' failed: {e}. Trying fallback 'utm' frame."
             )
@@ -90,7 +88,6 @@ class FloatSam():
                 )
                 self._node.get_logger().info("Fallback to 'utm' frame successful.")
             except Exception as e2:
-                # give a more informative error for callers
                 err_msg = (
                     f"Failed to find a transform from any UTM frame to '{self.MAP_FRAME}'. "
                     f"Tried '{source_frame}' and 'utm'. Original error: {e}. Fallback error: {e2}"
@@ -99,7 +96,7 @@ class FloatSam():
                 raise
 
         in_map = do_transform_pose_stamped(in_utm_pose, tf)
-        in_map.pose.position.z = gp.altitude  # ensure altitude is preserved
+        in_map.pose.position.z = gp.altitude  
         return in_map
 
     def convert_map_point_to_geopoint(self, x: float, y: float, z: float = 0.0) -> GeoPoint:
@@ -110,15 +107,12 @@ class FloatSam():
         in_map.pose.position.y = float(y)
         in_map.pose.position.z = float(z)
 
-        # Cache del frame UTM per non dover interrogare l'albero TF ad ogni singolo waypoint
         if not hasattr(self, '_utm_frame_cache') or self._utm_frame_cache is None:
-            # Lista dei frame UTM più comuni in SMARC e nel mondo (es. utm_33, utm_32, ecc.)
             candidates = ['utm_33_V', 'utm'] + [f'utm_{i}' for i in range(1, 61)]
             
             source_frame = None
             for candidate in candidates:
                 try:
-                    # Controllo rapidissimo (timeout=0) per vedere se il frame esiste nel buffer
                     self._tf_buffer.lookup_transform(
                         target_frame=candidate,
                         source_frame=self.MAP_FRAME,
@@ -126,17 +120,15 @@ class FloatSam():
                         timeout=Duration(seconds=0)
                     )
                     source_frame = candidate
-                    break  # Trovato! Usciamo dal ciclo
+                    break  
                 except Exception:
                     continue
                     
             if source_frame is None:
                 raise RuntimeError(f"Could not find a TF from '{self.MAP_FRAME}' to any valid UTM frame (e.g., 'utm_33').")
             
-            # Salviamo il frame corretto per i calcoli futuri
             self._utm_frame_cache = source_frame
 
-        # Ora eseguiamo la trasformazione reale usando il frame UTM corretto
         try:
             tf_inv = self._tf_buffer.lookup_transform(
                 target_frame=self._utm_frame_cache,
@@ -145,11 +137,10 @@ class FloatSam():
                 timeout=Duration(seconds=1)
             )
         except Exception as e:
-            self._utm_frame_cache = None  # Resettiamo la cache se per qualche motivo fallisce
+            self._utm_frame_cache = None  
             raise RuntimeError(f"Failed to transform map to {self._utm_frame_cache}: {e}")
 
         in_utm = do_transform_pose_stamped(in_map, tf_inv)
         in_utm.header.frame_id = self._utm_frame_cache
         
-        # Ora in_utm.header.frame_id conterrà qualcosa come "utm_33", e il convertitore non crasherà!
         return convert_utm_to_latlon(in_utm)
