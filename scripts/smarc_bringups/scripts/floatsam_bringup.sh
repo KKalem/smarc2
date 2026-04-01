@@ -9,7 +9,8 @@ done
 # Now the name includes the index
 ROBOT_NAME=floatsam_usv_$IDX
 SESSION=${ROBOT_NAME}_bringup
-USE_SIM_TIME=true
+SIM_TRUE=true
+USE_SIM_TIME=$SIM_TRUE
 
 # WASP / MQTT settings
 AGENT_TYPE=subsurface
@@ -18,7 +19,7 @@ CONTEXT=tuper
 BT_LOG_MODE=compact
 DOMAIN=surface
 
-if [ "$USE_SIM_TIME" = "true" ]; then
+if [ "$SIM_TRUE" = "true" ]; then
     REALSIM=simulation
     LINK_SUFFIX="_gt"
 else
@@ -29,11 +30,16 @@ fi
 # --- Vehicle health publisher (simulation uses publisher) ---
 tmux -2 new-session -d -s $SESSION -n 'vehicle_health'
 tmux select-window -t $SESSION:0
-if [ "$REALSIM" = "real" ]; then
-    tmux send-keys "sleep 5; echo 'In real mode: launch vehicle health checker if available'" C-m
-else
-    tmux send-keys "ros2 topic pub -r 1 /$ROBOT_NAME/smarc/vehicle_health std_msgs/msg/Int8 '{data: 0}'" C-m
-fi
+
+# if [ "$REALSIM" = "real" ]; then
+#     tmux send-keys "sleep 5; ros2 launch floatsam_topic_bridge floatsam_health_checker.launch.py robot_name:=$ROBOT_NAME" C-m
+# else
+#     tmux send-keys "ros2 topic pub -r 1 /$ROBOT_NAME/smarc/vehicle_health std_msgs/msg/Int8 '{data: 0}'" C-m
+# fi
+
+# Momentarily always publish 0 for health, since all sensors are not attached yet
+tmux send-keys "ros2 topic pub -r 1 /$ROBOT_NAME/smarc/vehicle_health std_msgs/msg/Int8 '{data: 0}'" C-m
+
 
 # --- MQTT bridge ---
 tmux new-window -t $SESSION:1 -n 'mqtt_bridge'
@@ -43,7 +49,7 @@ tmux send-keys "sleep 3; ros2 launch str_json_mqtt_bridge waraps_bridge.launch b
 # --- Topic bridge for floatsam ---
 tmux new-window -t $SESSION:2 -n 'topic_bridge'
 tmux select-window -t $SESSION:2
-tmux send-keys "sleep 3; ros2 launch floatsam_topic_bridge floatsam_bridge.launch.py robot_name:=$ROBOT_NAME" C-m
+tmux send-keys "sleep 3; ros2 launch floatsam_topic_bridge floatsam_bridge.launch.py robot_name:=$ROBOT_NAME use_sim:=$SIM_TRUE" C-m
 
 # --- Controllers window (main controllers + description if any) ---
 tmux new-window -t $SESSION:3 -n 'controllers'
@@ -54,7 +60,7 @@ tmux select-layout -t $SESSION:3 tiled
 tmux select-pane -t $SESSION:3.0
 tmux send-keys "sleep 2; ros2 launch floatsam_controllers floatsam_controllers_launch.py robot_name:=$ROBOT_NAME" C-m
 tmux select-pane -t $SESSION:3.1
-tmux send-keys "sleep 3; ros2 launch floatsam_controllers rvo_launch.py robot_name:=$ROBOT_NAME" C-m
+tmux send-keys "sleep 3; ros2 launch floatsam_controllers rvo_launch.py robot_name:=$ROBOT_NAME use_sim:=$SIM_TRUE" C-m
 
 # --- Servers / action servers ---
 tmux new-window -t $SESSION:4 -n 'servers'
@@ -102,3 +108,6 @@ tmux select-window -t $SESSION:8
 # Set default window and attach
 tmux select-window -t $SESSION:6
 tmux -2 attach-session -t $SESSION
+
+
+

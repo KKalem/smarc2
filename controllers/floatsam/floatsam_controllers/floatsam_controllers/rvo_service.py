@@ -211,27 +211,39 @@ class RVOservice(Node):
 # --- msgs Callbacks --- #
     def _odom_callback(self, msg: Odometry, robot_id: int):
         """
-        Update robot position in blackboard when odometry is received.
+        Update robot position and velocity for RVO, explicitly casting to the GLOBAL shared map.
         """
+        robot_name = f'{self.robot_base_name}_{robot_id}'
+        
         pose_in_odom = PoseStamped()
         pose_in_odom.header = msg.header
         pose_in_odom.pose = msg.pose.pose
         velocity_in_odom = msg.twist.twist.linear
 
         try:
-            pose_in_map = do_transform_pose_stamped(
-                pose_in_odom, self._floatsam._odom_to_map_tf
+            # LIVE LOOKUP to the GLOBAL Map
+            odom_to_global_tf = self._floatsam._tf_buffer.lookup_transform(
+                self._floatsam.GLOBAL_MAP_FRAME,  
+                msg.header.frame_id,       
+                rclpy.time.Time()          
             )
-
         except Exception as e:
-            self.get_logger().error(
-                f"Error transforming odom to map for robot {robot_id}: {e}"
+            # Safely skip this tick if the TF tree isn't ready
+            self.get_logger().warn(
+                f"[RVO {robot_name}] Waiting for TF: {msg.header.frame_id} -> {self._floatsam.GLOBAL_MAP_FRAME}",
+                throttle_duration_sec=2.0
             )
             return
-        
-        self._robot_positions[f'{self.robot_base_name}_{robot_id}'] = pose_in_map
-        self._robot_velocities[f'{self.robot_base_name}_{robot_id}'] = velocity_in_odom
 
+        # Apply the transform
+        try:
+            pose_in_global = do_transform_pose_stamped(pose_in_odom, odom_to_global_tf)
+        except Exception as e:
+            self.get_logger().error(f"Error transforming odom for RVO robot {robot_id}: {e}")
+            return
+        
+        self._robot_positions[robot_name] = pose_in_global
+        self._robot_velocities[robot_name] = velocity_in_odom
 
 
 def main(args=None):

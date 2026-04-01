@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'smarc_topics_publisher = floatsam_topic_bridge.smarc_topics_publisher:main',
+            'floatsam_health_checker = floatsam_topic_bridge.floatsam_health_checker:main',
         ],
     },
 )

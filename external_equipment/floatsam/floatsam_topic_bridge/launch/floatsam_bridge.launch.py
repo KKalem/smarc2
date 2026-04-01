@@ -14,7 +14,7 @@ def generate_launch_description():
     # Declare launch arguments
     use_sim_arg = DeclareLaunchArgument(
         'use_sim',
-        default_value='true',
+        default_value='false',
         description='Use simulator topics (true) or real hardware topics (false)'
     )
     
@@ -22,6 +22,18 @@ def generate_launch_description():
         'robot_name',
         default_value='floatsam_usv',
         description='Name of the robot for namespacing'
+    )
+
+    thruster_limit_arg = DeclareLaunchArgument(
+        'thruster_limit',
+        default_value='1000.0',
+        description='Thruster limit in RPM used to normalize actuator commands'
+    )
+
+    master_floatsam_arg = DeclareLaunchArgument(
+        'master_floatsam',
+        default_value='floatsam_usv_0',
+        description='Name of the floatsam whose rtk position will be set as the /map frame center'
     )
     
     # Get the install directory and construct the path to the executable in bin/
@@ -35,6 +47,8 @@ def generate_launch_description():
             '--ros-args',
             '-p', ['use_sim:=', LaunchConfiguration('use_sim')],
             '-p', ['robot_name:=', LaunchConfiguration('robot_name')],
+            '-p', ['thruster_limit:=', LaunchConfiguration('thruster_limit')],
+            '-p', ['master_floatsam:=', LaunchConfiguration('master_floatsam')],
             '--log-level', 'info'
         ],
         output='screen',
@@ -44,5 +58,7 @@ def generate_launch_description():
     return LaunchDescription([
         use_sim_arg,
         robot_name_arg,
+        thruster_limit_arg,
+        master_floatsam_arg,
         smarc_topics_publisher_node,
     ])

@@ -8,10 +8,11 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from .floatsam_common import FloatSam
 
+
 import py_trees
 import py_trees_ros
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from geographic_msgs.msg import GeoPoint
 from smarc_msgs.msg import FloatStamped
 from tf2_geometry_msgs import do_transform_pose_stamped
@@ -32,20 +33,14 @@ class BTActionServer(Node):
         self.declare_parameter('robot_name', 'floatsam_usv_0')
         self.this_robot_name = self.get_parameter('robot_name').value
         self.robot_base_name = '_'.join(self.this_robot_name.split('_')[:-1])
-        self._floatsam = FloatSam(self, self.this_robot_name)
+
+        self.declare_parameter('use_sim', True)
+        self.use_sim = self.get_parameter('use_sim').value
+        self._floatsam = FloatSam(self, self.this_robot_name, use_sim=self.use_sim)
 
         self.declare_parameter('num_robots', 3)
         num_robots = self.get_parameter('num_robots').value
         self.robot_ids = list(range(num_robots))
-
-        self.declare_parameter('collision_radius', 1.0)   
-        self.collision_radius = self.get_parameter('collision_radius').value
-
-        self.declare_parameter('max_num_collisions', 3)  
-        self.max_num_collisions = self.get_parameter('max_num_collisions').value
-
-        self.declare_parameter('waypoints_step_size', 0.5)  
-        self.waypoints_step_size = self.get_parameter('waypoints_step_size').value
 
         self.declare_parameter('max_velocity', 2.0)  
         self.max_velocity = self.get_parameter('max_velocity').value
@@ -112,35 +107,19 @@ class BTActionServer(Node):
         blackboard.register_key(key="robot_assignments", access=py_trees.common.Access.WRITE)
         blackboard.register_key(key="this_robot_name", access=py_trees.common.Access.WRITE)
         blackboard.register_key(key="formation_points", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="collision_radius", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="colliding_list", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="collision_streak", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="robot_cluster_centre", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="formation_cluster_centre", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="approach_direction", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="max_num_collisions", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="waypoints_step_size", access=py_trees.common.Access.WRITE)
-        blackboard.register_key(key="max_velocity", access=py_trees.common.Access.WRITE)
         blackboard.register_key(key="formation_points_latlon", access=py_trees.common.Access.WRITE)
         blackboard.register_key(key="last_point_tolerance_move_path", access=py_trees.common.Access.WRITE)
         blackboard.register_key(key="loiter_heading_fb", access=py_trees.common.Access.WRITE)
+        blackboard.register_key(key="max_velocity", access=py_trees.common.Access.WRITE)
         
         blackboard.robot_positions = {}
         blackboard.robot_assignments = {}
         blackboard.formation_points={}
-        blackboard.colliding_list = []
-        blackboard.collision_streak = {}
         blackboard.this_robot_name = self.this_robot_name  
-        blackboard.collision_radius = self.collision_radius
-        blackboard.robot_cluster_centre = None   
-        blackboard.formation_cluster_centre = None  
-        blackboard.approach_direction = None       
-        blackboard.max_num_collisions = self.max_num_collisions
-        blackboard.waypoints_step_size = self.waypoints_step_size
-        blackboard.max_velocity = self.max_velocity
         blackboard.formation_points_latlon = {}
         blackboard.last_point_tolerance_move_path = self.last_point_tolerance_move_path
         blackboard.loiter_heading_fb = {}
+        blackboard.max_velocity = self.max_velocity
         
         for robot_id in self.robot_ids:
             blackboard.robot_positions[f'{self.robot_base_name}_{robot_id}'] = None
@@ -164,43 +143,45 @@ class BTActionServer(Node):
             self.get_logger().info(f'Subscribed to {odom_topic}')
 
     def _odom_callback(self, msg: Odometry, robot_id: int):
-        """Update robot position in blackboard when odometry is received.
+        """Update robot position in blackboard, explicitly casting to the GLOBAL shared map."""
+        robot_name = f'{self.robot_base_name}_{robot_id}'
         
-        The raw odometry pose is in the odom/unity_origin frame.  We must
-        transform it into the map frame so that it is consistent with
-        formation_points (which are stored in the map frame).  Without this
-        transform every distance calculation in the behaviour tree would
-        compare coordinates from two different frames, leading to wrong
-        speed overrides, wrong waypoints and false arrival declarations.
-        """
         pose_in_odom = PoseStamped()
         pose_in_odom.header = msg.header
         pose_in_odom.pose = msg.pose.pose
 
         try:
-            pose_in_map = do_transform_pose_stamped(
-                pose_in_odom, self._floatsam._odom_to_map_tf
+            # 100% LIVE LOOKUP to the GLOBAL Map. No caches.
+            # Sim: unity_origin -> unity_origin (Identity TF, resolves instantly)
+            # Real: robot_X/odom -> map (Traverses the Master/Slave TF tree)
+            odom_to_global_tf = self._floatsam._tf_buffer.lookup_transform(
+                self._floatsam.GLOBAL_MAP_FRAME,  
+                msg.header.frame_id,       
+                rclpy.time.Time()          
             )
         except Exception as e:
-            self.get_logger().error(
-                f"Error transforming odom to map for robot {robot_id}: {e}"
+            # If TF fails, the tree isn't ready (e.g. waiting for RTK lock). 
+            # We safely return and try again next tick.
+            self.get_logger().warn(
+                f"[{robot_name}] Waiting for TF: {msg.header.frame_id} -> {self._floatsam.GLOBAL_MAP_FRAME}",
+                throttle_duration_sec=2.0
             )
             return
 
+        # Apply the transform
+        try:
+            pose_in_global = do_transform_pose_stamped(pose_in_odom, odom_to_global_tf)
+        except Exception as e:
+            self.get_logger().error(f"Error transforming odom for robot {robot_id}: {e}")
+            return
+
+        # Update the Blackboard
         blackboard = py_trees.blackboard.Client(name="Server")
         blackboard.register_key(key="robot_positions", access=py_trees.common.Access.WRITE)
         
         positions = blackboard.robot_positions
-        positions[f'{self.robot_base_name}_{robot_id}'] = pose_in_map
+        positions[robot_name] = pose_in_global
         blackboard.robot_positions = positions
- 
-        valid = [p for p in positions.values() if p is not None]
-        if valid:
-            cx = sum(p.pose.position.x for p in valid) / len(valid)
-            cy = sum(p.pose.position.y for p in valid) / len(valid)
-            blackboard.register_key(key="robot_cluster_centre", access=py_trees.common.Access.WRITE)
-            blackboard.robot_cluster_centre = [cx, cy]
-            self._update_approach_direction()
 
 
     def create_behavior_tree(self):
@@ -320,44 +301,11 @@ class BTActionServer(Node):
             blackboard.formation_points = new_formation_points
             blackboard.formation_points_latlon = new_formation_points_latlon
 
-            pts = list(new_formation_points.values())  
-            fcx = sum(p[0] for p in pts) / len(pts)
-            fcy = sum(p[1] for p in pts) / len(pts)
-            blackboard.register_key(key="formation_cluster_centre", access=py_trees.common.Access.WRITE)
-            blackboard.formation_cluster_centre = [fcx, fcy]
-            self.get_logger().info(f"Formation cluster centre: [{fcx:.2f}, {fcy:.2f}]")
-            self._update_approach_direction()
-
             return True  
             
         except Exception as e:
             self.get_logger().error(f"Failed to parse goal: {e}")
             return False
-
-    def _update_approach_direction(self) -> None:
-        """
-        Compute the direction (radians) of the line from the robot cluster centre
-        to the formation cluster centre, and write it to the blackboard.
-        Only updates when both centres are available.
-        """
-        bb = py_trees.blackboard.Client(name="Server")
-        bb.register_key(key="robot_cluster_centre", access=py_trees.common.Access.READ)
-        bb.register_key(key="formation_cluster_centre", access=py_trees.common.Access.READ)
-        bb.register_key(key="approach_direction", access=py_trees.common.Access.WRITE)
-
-        rc = bb.robot_cluster_centre
-        fc = bb.formation_cluster_centre
-        if rc is None or fc is None:
-            return
-
-        dx = fc[0] - rc[0]
-        dy = fc[1] - rc[1]
-        direction = np.arctan2(dy, dx)  
-        bb.approach_direction = direction
-        self.get_logger().debug(
-            f"Approach direction updated: {np.degrees(direction):.1f}° "
-            f"(robot centre {[round(v,2) for v in rc]}, formation centre {[round(v,2) for v in fc]})"
-        )
 
     def _on_cancel_received(self) -> bool:
         """Handle cancellation."""
@@ -458,3 +406,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+

@@ -13,15 +13,16 @@ sensors:
     output_topic: 'core/gps_right'
     msg_type: 'px4_msgs/SensorGps'
     
-  # RTK GPS
   rtk_heading:
-    input_topic: '/heading'  
+    input_topic: '/atteuler'
     output_topic: 'core/heading'
-    msg_type: 'sensor_msgs/NavSatFix'
+    msg_type: 'septentrio_gnss_driver/msg/AttEuler' # <--- MUST MATCH HARDWARE
     
-  rtk_right:
-    input_topic: '/gpgga'  
+  rtk_position:
+    input_topic: '/navsatfix'  
     output_topic: 'core/rtk_position'
+    # THIS MUST BE SENSOR_GPS FOR THE EKF TO WORK
+    output_for_px4: '/fmu/in/sensor_gps' 
     msg_type: 'sensor_msgs/NavSatFix'
     
   # IMU 

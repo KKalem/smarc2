@@ -20,7 +20,8 @@ def generate_launch_description():
                 'safety_margin': 1.0,               # [m]
                 'max_speed': 2.0,                   # [m/s]
                 'update_rate': 20.0,                # [Hz]
-                'num_robot': 3                      #integer
+                'num_robot': 3,                      #integer
+                'use_sim':True
             }],
         )
     
