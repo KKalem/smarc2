@@ -1,1 +1,0 @@
-/home/smarc2user/colcon_ws/src/smarc2/external_packages/ROS-TCP-Endpoint/launch/endpoint.py
