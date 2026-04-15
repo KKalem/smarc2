@@ -14,7 +14,7 @@ def generate_launch_description():
     # Declare launch arguments
     use_sim_arg = DeclareLaunchArgument(
         'use_sim',
-        default_value='false',
+        default_value='True',
         description='Use simulator topics (true) or real hardware topics (false)'
     )
     

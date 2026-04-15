@@ -330,11 +330,19 @@ class SmarcTopicsPublisher(Node):
                 self.get_logger().info(f'  Payload {payload_name}: {config["input_topic"]} → {namespaced_topic(config["output_topic"])}')
     
     def _port_cmd_callback(self, msg: Float32):
+        #if self.use_sim:
+        #    self.latest_port_cmd = msg.data
+        #    self.last_cmd_time = self.get_clock().now()
+        #else:
         raw = msg.data / self.thruster_limit
         self.latest_port_cmd = max(-1.0, min(1.0, raw))
         self.last_cmd_time = self.get_clock().now()
 
     def _strb_cmd_callback(self, msg: Float32):
+        #if self.use_sim:
+        #    self.latest_strb_cmd = msg.data
+        #    self.last_cmd_time = self.get_clock().now()
+        #else:
         raw = msg.data / self.thruster_limit
         self.latest_strb_cmd = max(-1.0, min(1.0, raw))
         self.last_cmd_time = self.get_clock().now()
@@ -351,15 +359,18 @@ class SmarcTopicsPublisher(Node):
 
         if self.use_sim:
             port_msg = Float32()
-            port_msg.data = self.latest_port_cmd
+            port_msg.data = self.latest_port_cmd * self.thruster_limit
             strb_msg = Float32()
-            strb_msg.data = self.latest_strb_cmd
+            strb_msg.data = self.latest_strb_cmd * self.thruster_limit
+            self.get_logger().info("SONO USE SIM TRUEEEEEEEEEEE")
             self.sim_port_pub.publish(port_msg)
             self.sim_strb_pub.publish(strb_msg)
         else:
             # If the human is in Manual mode, ROS stops publishing.
             # RC takes over flawlessly without fighting.
+            self.get_logger().info("SONO USE SIM FALSEEE")
             if not self.is_offboard:
+                self.get_logger().info("SONO GAY")
                 return
 
             now_us = self.get_clock().now().nanoseconds // 1000
@@ -726,3 +737,5 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+
