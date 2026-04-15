@@ -268,7 +268,6 @@ class Captain(Node):
         
         
         if not measurements_ok or not setpoints_ok:
-            self.logger.warn("Control input timeout - stopping thrusters", throttle_duration_sec=1.0)
             self.thruster_port_msg.data = 0.0
             self.thruster_strb_msg.data = 0.0
             self.thruster_port_pub.publish(self.thruster_port_msg)
@@ -295,9 +294,7 @@ class Captain(Node):
             velocity_rpm_setpoint = self.velocity_pid.update_error(velocity_error, now)
         else:
             velocity_rpm_setpoint = 0
-            self.logger.info(f"np.abs(yaw_error):{np.abs(yaw_error)}, while the threshold is:{self.yaw_threshold}")
-            self.logger.info(f"self.move_on_place_flag:{self.move_on_place_flag}")
-            self.logger.info("I am setting the velocity_rpm_setpoint to zero")
+            
         
         if velocity_rpm_setpoint == 0:
             yaw_correction = self.compute_turn_in_place_actuation(yaw_error, yaw_actuation)

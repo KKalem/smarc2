@@ -7,8 +7,11 @@ from launch_ros.actions import Node
 def generate_launch_description():
     robot_name_arg = DeclareLaunchArgument(
         'robot_name', default_value='floatsam_usv', description='Robot namespace')
+    use_sim_arg = DeclareLaunchArgument(
+        'use_sim', default_value='true', description='Use simulation flag')
 
     robot_name = LaunchConfiguration('robot_name')
+    use_sim = LaunchConfiguration('use_sim')
 
     node = Node(
         package='floatsam_loiter_heading',
@@ -17,6 +20,7 @@ def generate_launch_description():
         namespace=robot_name,
         parameters=[{
             "robot_name": robot_name,
+            "use_sim": use_sim,
             "loiter_tolerance" : 5.0,               
             "heading_tolerance": 6.0,               # degrees 
             "loiter_reposition_tolerance": 0.5,
@@ -40,5 +44,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         robot_name_arg,
+        use_sim_arg,
         node
     ])

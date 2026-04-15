@@ -6,7 +6,7 @@ from rclpy.node import Node
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-from .floatsam_common import FloatSam
+from floatsam_controllers.floatsam_common import FloatSam
 
 import py_trees
 import py_trees_ros
@@ -35,9 +35,11 @@ class BTActionServer(Node):
         super().__init__('go_to_formation_bt_action_server')
 
         self.declare_parameter('robot_name', 'floatsam_usv_0')
+        self.declare_parameter('use_sim', True)
         self.this_robot_name = self.get_parameter('robot_name').value
+        self.use_sim = self.get_parameter('use_sim').value
         self.robot_base_name = '_'.join(self.this_robot_name.split('_')[:-1])
-        self._floatsam = FloatSam(self, self.this_robot_name)
+        self._floatsam = FloatSam(self, self.this_robot_name, use_sim=self.use_sim)
 
         self.declare_parameter('num_robots', 3)
         num_robots = self.get_parameter('num_robots').value

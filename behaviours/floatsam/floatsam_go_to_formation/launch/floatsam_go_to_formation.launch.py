@@ -19,6 +19,11 @@ def generate_launch_description():
         default_value='floatsam_usv_0',
         description='Full name of the robot running this algorithm (e.g. floatsam_usv_0)'
     )
+    use_sim_arg = DeclareLaunchArgument(
+        'use_sim',
+        default_value='true',
+        description='Use simulation'
+    )
 
     num_robots_arg = DeclareLaunchArgument(
         'num_robots',
@@ -57,6 +62,7 @@ def generate_launch_description():
     )
 
     robot_name = LaunchConfiguration('robot_name')
+    use_sim = LaunchConfiguration('use_sim')
     num_robots = LaunchConfiguration('num_robots')
     collision_radius = LaunchConfiguration('collision_radius')
     max_num_collisions = LaunchConfiguration('max_num_collisions')
@@ -72,6 +78,7 @@ def generate_launch_description():
             name='floatsam_go_to_formation_action_server',
             parameters=[{
                 'robot_name': robot_name,
+                'use_sim': use_sim,
                 'num_robots': num_robots,
                 'collision_radius': collision_radius,
                 'max_num_collisions': max_num_collisions,
@@ -85,6 +92,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         robot_name_arg,
+        use_sim_arg,
         num_robots_arg,
         collision_radius_arg,
         max_num_collisions_arg,

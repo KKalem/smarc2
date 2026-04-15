@@ -20,7 +20,7 @@ class RVOservice(Node):
         self.get_logger().info('RVO Safe Velocity Service is ready.')
         self.declare_node_parameters()
         self.get_node_parameters()
-        self._floatsam = FloatSam(self, self.this_robot_name)
+        self._floatsam = FloatSam(self, self.this_robot_name, use_sim=self.use_sim)
 
         self._odom_subscribers = {}
         self._robot_positions = {}
@@ -176,6 +176,7 @@ class RVOservice(Node):
     def declare_node_parameters(self):
         """Declare all configurable parameters for PIDs and mixer"""
         self.declare_parameter("robot_name", "floatsam_0")
+        self.declare_parameter("use_sim", True)
         self.declare_parameter("time_horizon", 0.5)
         self.declare_parameter("safety_margin", 0.5)
         self.declare_parameter("max_speed", 3.0)
@@ -184,6 +185,7 @@ class RVOservice(Node):
 
     def get_node_parameters(self):
         self.this_robot_name = str(self.get_parameter("robot_name").value)
+        self.use_sim = self.get_parameter("use_sim").value
         self.update_rate = float(self.get_parameter("update_rate").value)
         self.safety_margin = float(self.get_parameter("safety_margin").value)
         self.max_speed = float(self.get_parameter("max_speed").value)

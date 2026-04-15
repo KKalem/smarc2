@@ -9,7 +9,7 @@ from rclpy.action import ActionClient
 from rclpy.time import Time, Duration
 import traceback
 
-from .floatsam_common import FloatSam
+from floatsam_controllers.floatsam_common import FloatSam
 
 from smarc_msgs.msg import FloatStamped
 from floatsam_msgs.msg import Topics as FloatsamTopics
@@ -47,10 +47,13 @@ class LoiterActionFloatSam():
         self._loiter_velocity_i_gain = str(self._node.get_parameter('velocity_i_gain').value)
         self._loiter_velocity_d_gain = str(self._node.get_parameter('velocity_d_gain').value)
         
+        self._node.declare_parameter('use_sim', True)
+        self._use_sim = self._node.get_parameter('use_sim').get_parameter_value().bool_value
+        
         self._robot_name: str = self._node.get_parameter('robot_name').value
         
         self.MAP_FRAME: str = self._robot_name + '/map'
-        self._floatsam = FloatSam(node, self._robot_name)
+        self._floatsam = FloatSam(node, self._robot_name, use_sim=self._use_sim)
         
         self._node.get_logger().info(f"FloatSam loiter server initialized for robot: {self._robot_name}")
 

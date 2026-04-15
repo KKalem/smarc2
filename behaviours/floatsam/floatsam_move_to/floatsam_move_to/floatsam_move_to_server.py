@@ -9,7 +9,7 @@ from rclpy.time import Time, Duration
 
 import traceback
 
-from .floatsam_common import FloatSam
+from floatsam_controllers.floatsam_common import FloatSam
 
 from smarc_msgs.msg import FloatStamped
 from floatsam_msgs.msg import Topics as FloatsamTopics
@@ -35,10 +35,13 @@ class MoveToActionFloatSam():
                  node: Node):
         self._node : Node = node
         
+        self._node.declare_parameter('use_sim', True)
+        self._use_sim = self._node.get_parameter('use_sim').get_parameter_value().bool_value
+        
         self._robot_name : str = self._node.get_parameter('robot_name').value
         
         self.MAP_FRAME : str = self._robot_name + '/map'
-        self._floatsam = FloatSam(node, self._robot_name)
+        self._floatsam = FloatSam(node, self._robot_name, use_sim=self._use_sim)
         
         self._node.get_logger().info(f"FloatSam move_to server initialized for robot: {self._robot_name}")
 

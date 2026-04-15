@@ -6,7 +6,7 @@ from rclpy.node import Node
 from rclpy.action import ActionServer
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
-from .floatsam_common import FloatSam
+from floatsam_controllers.floatsam_common import FloatSam
 
 
 import py_trees
