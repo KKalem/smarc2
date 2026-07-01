@@ -41,7 +41,7 @@ LIDAR_DRIVER=False
 CAMERA_DRIVER=False
 YOLO_DRIVER=False
 CAMERA_GIMBALL_DRIVER=False
-CAMERA_MQTT_CONTORL=False
+CAMERA_MQTT=False
 CAMERA_STREAM=FAlse
 SIDESCAN_DRIVER=False
 SIMULATOR_DRIVER=False
@@ -80,7 +80,7 @@ if [ "$MODE" == "SIM" ]; then
     LIDAR_DRIVER=False
     CAMERA_DRIVER=False
     CAMERA_GIMBALL_DRIVER=False
-    CAMERA_MQTT_CONTORL=False
+    CAMERA_MQTT=False
     CAMERA_STREAM=FAlse
     SIDESCAN_DRIVER=False
     SIMULATOR_DRIVER=True
@@ -113,7 +113,7 @@ if [ "$MODE" == "REAL" ]; then
     CAMERA_DRIVER=True
     YOLO_DRIVER=True
     CAMERA_GIMBALL_DRIVER=True
-    CAMERA_MQTT_CONTORL=True
+    CAMERA_MQTT=True
     CAMERA_STREAM=True
     SIDESCAN_DRIVER=True
     SIMULATOR_DRIVER=False
@@ -240,7 +240,8 @@ col(
 
 #Obstacle avoidance
 if [ $OBSTACLE_AVOIDANCE == "True" ]; then
-    OBSTACLE_AVOIDANCE_CMD="ros2 launch evolo_obstacle_avoidance evolo_obstacle_avoidance_launch.py"
+    #OBSTACLE_AVOIDANCE_CMD="ros2 run topic_tools relay /evolo/ctrl/twist_planned /evolo/ctrl/twist_setpoint"
+    OBSTACLE_AVOIDANCE_CMD="ros2 run evolo_obstacle_avoidance_simple_cpp evolo_obstacle_avoidance_cpp --ros-args -r __ns:=/evolo"
     CLUSTERING_CMD="ros2 launch evolo_map_cluster evolo_map_cluster_launch.py"
     tmux_make_layout "$SESSION" Obstacle-avoidance "
     col(
@@ -330,15 +331,16 @@ fi
 
 #Yolo
 if [ $YOLO_DRIVER == "True" ]; then
-    YOLO_PYTHONPATH="/home/evolo/yolov-env/lib/python3.10/site-packages:/home/evolo/yolov-env/local/lib/python3.10/dist-packages:/home/evolo/yolov-env/lib/python3/dist-packages:/home/evolo/yolov-env/lib/python3.10/dist-packages"
+    YOLO_PYTHONPATH="/home/evolo/yolov-env/lib/python3.10/site-packages"
     YOLO_CMD="export PYTHONPATH=$YOLO_PYTHONPATH:\$PYTHONPATH && \
         ros2 launch yolo_bringup yolo.launch.py \
         model_type:=YOLOE \
-        model:=/home/evolo/yolo/yoloe-26l-seg.pt \
+        model:=/home/evolo/yolo/yoloe-26s-seg.pt \
         input_image_topic:=/$ROBOT_NAME/sensors/gimbal_camera/camera/image_raw \
         image_reliability:=2 \
         device:=cuda:0 \
         use_tracking:=True \
+        tracker:=botsort.yaml \
         use_debug:=True"
     YOLO_ACTION_CMD="ros2 launch yolo_smarc_actions smarc_yolo_action_launch.py robot_name:=evolo"
     tmux_make_layout "$SESSION" YOLO "
@@ -360,9 +362,9 @@ if [ $CAMERA_GIMBALL_DRIVER == "True" ]; then
         robot_name:=\"$ROBOT_NAME\" \
         use_sim_time:=$USE_SIM_TIME"
     GIMBAL_CAM_ACTION_CLIENT_CMD="ros2 launch evolo_gimbal_remote_control gimbal_remote_control.launch.py robot_name:=evolo"
-    GIMBAL_JSON_FEEDBACK_CMD="ros2 run evolo_gimbal_remote_control gimbal_json_publisher.py"
+    JSON_FEEDBACK_CMD="ros2 launch evolo_gimbal_remote_control json_publishers.launch.py robot_name:=evolo"
 
-    if [ $CAMERA_MQTT_CONTORL == "True" ]; then
+    if [ $CAMERA_MQTT == "True" ]; then
         tmux_make_layout "$SESSION" Gimbal-driver "
         col(
             row(
@@ -371,7 +373,7 @@ if [ $CAMERA_GIMBALL_DRIVER == "True" ]; then
             ),
             row(
                 var(GIMBAL_CAM_ACTION_CLIENT_CMD),
-                var(GIMBAL_JSON_FEEDBACK_CMD)
+                var(JSON_FEEDBACK_CMD)
             )
         )" 
     else
