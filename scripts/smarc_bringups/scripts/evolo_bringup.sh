@@ -57,7 +57,6 @@ VIDERO_STREAM=False
 TOPIC_TRANSPORT=False
 ROSBOARD=False
 JSON_TRANSLATOR=False
-TWIST_VIZ=False
 UW_COM=False
 
 # ---- EXPERIMENTAL ----
@@ -97,7 +96,6 @@ if [ "$MODE" == "SIM" ]; then
     TOPIC_TRANSPORT=False
     ROSBOARD=False
     JSON_TRANSLATOR=False
-    TWIST_VIZ=True
     UW_COM=False
 fi
 
@@ -131,7 +129,6 @@ if [ "$MODE" == "REAL" ]; then
     TOPIC_TRANSPORT=True
     ROSBOARD=True
     JSON_TRANSLATOR=True
-    TWIST_VIZ=True
     UW_COM=True
 
 fi
@@ -207,6 +204,7 @@ row(
 )"
 
 # Health monitoring
+# HEALTH_MONITORING_CMD="ros2 run evolo_health_checker evolo_health_checker --ros-args -r __ns:=/evolo"
 HEALTH_MONITORING_CMD="ros2 topic pub -r 1 /$ROBOT_NAME/smarc/vehicle_health std_msgs/msg/Int8 '{data: 0}' "
 tmux_make_layout "$SESSION" Health-monitoring "
 col(
@@ -250,7 +248,8 @@ if [ $OBSTACLE_AVOIDANCE == "True" ]; then
         var(CLUSTERING_CMD)
     )"
 else
-    OBSTACLE_AVOIDANCE_CMD="ros2 run topic_tools relay /evolo/ctrl/twist_planned /evolo/ctrl/twist_setpoint"
+    #OBSTACLE_AVOIDANCE_CMD="ros2 run topic_tools relay /evolo/ctrl/twist_planned /evolo/ctrl/twist_setpoint"
+    OBSTACLE_AVOIDANCE_CMD="ros2 run evolo_obstacle_avoidance_simple_cpp evolo_obstacle_avoidance_cpp --ros-args -r __ns:=/evolo"
     tmux_make_layout "$SESSION" Obstacle-avoidance "
     col(
         var(OBSTACLE_AVOIDANCE_CMD)
@@ -463,15 +462,6 @@ if [ $ROSBOARD == "True" ]; then
     )"
 fi
 
-if [ $TWIST_VIZ == "True" ]; then
-    TWIST_TO_PATH_PLANNED_CMD="sleep 10; ros2 launch twist_to_path twist_to_path_launch.py subscribe_topic:=/evolo/ctrl/twist_planned publish_topic:=/evolo/rviz/twist_planned_path integration_time:=15.0 integration_dt:=0.5"
-    TWIST_TO_PATH_SETPOINT_CMD="sleep 10; ros2 launch twist_to_path twist_to_path_launch.py subscribe_topic:=/evolo/ctrl/twist_setpoint publish_topic:=/evolo/rviz/twist_setpoint_path integration_time:=15.0 integration_dt:=0.5"
-    tmux_make_layout "$SESSION" twist-visualization "
-    col(
-        var(TWIST_TO_PATH_PLANNED_CMD),
-        var(TWIST_TO_PATH_SETPOINT_CMD)
-    )"
-fi
 
 ########################################################################
 ########################## Communiation ################################
