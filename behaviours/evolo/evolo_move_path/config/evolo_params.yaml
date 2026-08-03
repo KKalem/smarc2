@@ -19,5 +19,5 @@
     dubins_mode: "smooth"  # "vwp" or "smooth"
 
     # Islands
-    hard_buffer: 5.0
-    soft_buffer: 10.0
+    hard_buffer: 1.0
+    soft_buffer: 15.0
