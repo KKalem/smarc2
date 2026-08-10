@@ -97,7 +97,7 @@ class DjiCaptain():
         self.NUM_PROPS = 4 if self.ROBOT_NAME == "M350" else 8
         self.ESC_IDLE_RPM = 2500 if self.ROBOT_NAME == "M350" else 500 #TODO FC30 idle, who knows...
         self._prop_rpms = [0] * self.NUM_PROPS
-        
+
 
         self._TF_NS : str = f"{self.ROBOT_NAME}/"
         self.ODOM_FRAME = self._TF_NS + DjiLinks.ODOM
@@ -260,7 +260,7 @@ class DjiCaptain():
         self._release_control_srv = node.create_client(Trigger, PSDKTopics.RELEASE_CONTROL_SRV)
         self._got_release_control_srv = False
         
-        self._status_pub = node.create_publisher(String, "captain_status", qos_profile=10)
+        self._status_pub = node.create_publisher(String, DjiTopics.CAPTAIN_STATUS_STR_TOPIC, qos_profile=10)
         self._tf_pub = TransformBroadcaster(node)
         self._static_tf_pub = StaticTransformBroadcaster(node)
 
