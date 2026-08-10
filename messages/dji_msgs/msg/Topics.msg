@@ -1,6 +1,11 @@
 # Used by the dji_captain, namespaced as needed.
 # Usually under /M350
 
+# Status strings, for human-readable strings in topics
+# Captain's status string
+string CAPTAIN_STATUS_STR_TOPIC = 'status_str/captain_status'
+string ALARS_BT_STATUS_STR_TOPIC = 'status_str/alars_bt'
+
 # moving around
 string MOVE_TO_SETPOINT_TOPIC = 'move_base' # PoseStamped
 string VELOCITY_SETPOINT_TOPIC = 'cmd_vel' # TwistStamped
