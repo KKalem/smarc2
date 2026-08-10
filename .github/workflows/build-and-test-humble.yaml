@@ -35,10 +35,19 @@ jobs:
 
           sudo dpkg -i /tmp/ros2-apt-source.deb
 
+          # GitHub ubuntu-22.04 runners may contain LLVM's versioned
+          # libunwind development package, which conflicts with Ubuntu's
+          # libunwind-dev required by GStreamer.
+          sudo apt-get remove -y \
+          libunwind-13-dev \
+          libunwind-14-dev \
+          libunwind-15-dev || true
+
           sudo apt-get update
           sudo apt-get install -y \
             ros-humble-ros-base \
-            ros-dev-tools
+            ros-dev-tools \
+            libunwind-dev
 
       - name: Check ROS
         shell: bash
