@@ -114,7 +114,7 @@ class AlarsBT():
             self._bt : BehaviourTree|None = None
             self._prev_str : str = ""
 
-            status_str_pub = self._node.create_publisher(String, 'alars_bt/status', 10)
+            status_str_pub = self._node.create_publisher(String, 'DJITopics.ALARS_BT_STATUS_STR_TOPIC', 10)
             def publish_status():
                 msg = String()
                 msg.data = self._status_str
