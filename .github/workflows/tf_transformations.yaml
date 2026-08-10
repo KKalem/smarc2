@@ -1,4 +1,4 @@
-# .github/workflows/check-hardcoded-ros-topics.yaml
+# .github/workflows/tf-transformations.yaml
 
 name: Check tf_transformations imports
 
@@ -9,7 +9,7 @@ on:
     branches: [humble, gh_workflow_testing]
 
 jobs:
-  check-hardcoded-topics:
+  check-tf-transformations-imports:
     runs-on: ubuntu-latest
 
     steps:
