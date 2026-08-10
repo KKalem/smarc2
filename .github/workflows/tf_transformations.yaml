@@ -1,6 +1,6 @@
 # .github/workflows/check-hardcoded-ros-topics.yaml
 
-name: Check hardcoded ROS topics
+name: Check tf_transformations imports
 
 on:
   pull_request:
