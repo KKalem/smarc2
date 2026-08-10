@@ -36,6 +36,7 @@ jobs:
           cat changed_python_files.txt
 
       - name: Check for hardcoded ROS topics
+        continue-on-error: true
         shell: bash
         run: |
           python - <<'PY'
@@ -185,7 +186,7 @@ jobs:
 
               print()
               print("ROS topic names must not be hardcoded.")
-              #sys.exit(1)
+              sys.exit(1)
 
           print("No hardcoded ROS topic strings found.")
           PY
