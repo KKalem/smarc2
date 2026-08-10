@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: 
-            path: colcon_ws/${{ github.event.repository.name }}
+            path: colcon_ws/src/${{ github.event.repository.name }}
 
       - name: Install ROS 2 Humble
         shell: bash
@@ -49,14 +49,14 @@ jobs:
 
       - name: Get base submodules
         shell: bash
-        working_directory: colcon_ws/${{ github.event.repository.name }}
+        working_directory: colcon_ws/src/${{ github.event.repository.name }}
         run: |
             git submodule update --init external_packages/mqtt_bridge/
             git submodule update --init external_packages/ROS-TCP-Endpoint/
 
       - name: Rosdep
         shell: bash
-        working_directory: colcon_ws/${{ github.event.repository.name }}
+        working_directory: colcon_ws
         run: |
           sudo apt-get install -y python3-rosdep
           sudo rosdep init
