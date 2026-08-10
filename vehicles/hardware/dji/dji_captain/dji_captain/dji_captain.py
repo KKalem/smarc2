@@ -97,24 +97,7 @@ class DjiCaptain():
         self.NUM_PROPS = 4 if self.ROBOT_NAME == "M350" else 8
         self.ESC_IDLE_RPM = 2500 if self.ROBOT_NAME == "M350" else 500 #TODO FC30 idle, who knows...
         self._prop_rpms = [0] * self.NUM_PROPS
-
-        amazing_topic = 'totally_real/robot_forehead/explosion'
-        sub = node.create_subscription(
-            String,
-            amazing_topic,
-            lambda msg: self.logerr(f"Received message on {amazing_topic}, which is a hardcoded topic that should not be used. Message: {msg.data}"),
-            qos_profile=10)
-
-        sub2 = node.create_subscription(
-            String,
-            'totally_real/robot_forehead/explosion2',
-            lambda msg: self.logerr(f"Received message on totally_real/robot_forehead/explosion2, which is a hardcoded topic that should not be used. Message: {msg.data}"),
-            qos_profile=10)
-
-        pub = node.create_publisher(
-            String,
-            amazing_topic,
-            qos_profile=10)
+        
 
         self._TF_NS : str = f"{self.ROBOT_NAME}/"
         self.ODOM_FRAME = self._TF_NS + DjiLinks.ODOM
