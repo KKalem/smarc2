@@ -37,7 +37,6 @@ jobs:
 
       - name: Check for tf_transformations imports
         shell: bash
-        continue-on-error: true
         run: |
             python - <<'PY'
             import ast
@@ -66,7 +65,7 @@ jobs:
                     source = path.read_text(encoding="utf-8")
                     tree = ast.parse(source, filename=str(path))
                 except (SyntaxError, UnicodeDecodeError) as exc:
-                    print(f"::warning file={path}::Could not parse Python file: {exc}")
+                    print(f"::error file={path}::Could not parse Python file: {exc}")
                     continue
 
                 for node in ast.walk(tree):
@@ -97,7 +96,7 @@ jobs:
 
                 for path, line, description in violations:
                     print(
-                        f"::warning file={path},line={line}::"
+                        f"::error file={path},line={line}::"
                         f"Changed Python file imports tf_transformations: {description}"
                     )
                     print(f"  {path}:{line}: {description}")
