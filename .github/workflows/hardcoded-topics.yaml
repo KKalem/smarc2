@@ -76,72 +76,116 @@ jobs:
               return bool(TOPIC_NAME_RE.search(name))
 
 
-          for node in ast.walk(tree):
+          files_file = pathlib.Path("changed_python_files.txt")
 
-              # Examples caught:
-              # topic = "/foo"
-              # input_topic = "/foo"
-              # topic_output = "/foo"
-              # self.camera_topic_name = "/foo"
-              if isinstance(node, (ast.Assign, ast.AnnAssign)):
-                  value = node.value
+          if not files_file.exists():
+              print("No changed Python file list found.")
+              sys.exit(0)
 
-                  targets = (
-                      node.targets
-                      if isinstance(node, ast.Assign)
-                      else [node.target]
-                  )
+          files = [
+              pathlib.Path(line.strip())
+              for line in files_file.read_text().splitlines()
+              if line.strip()
+          ]
 
-                  if is_string_literal(value):
-                      for target in targets:
-                          name = assigned_name(target)
+          violations = []
 
-                          if name and looks_like_topic_name(name):
+          for path in files:
+              if not path.exists():
+                  continue
+
+              try:
+                  source = path.read_text(encoding="utf-8")
+                  tree = ast.parse(source, filename=str(path))
+              except (SyntaxError, UnicodeDecodeError) as exc:
+                  print(f"::error file={path}::Could not parse Python file: {exc}")
+                  sys.exit(2)
+
+              for node in ast.walk(tree):
+
+                  # Catches:
+                  # topic = "/foo"
+                  # input_topic = "/foo"
+                  # topic_output = "/foo"
+                  # self.camera_topic_name = "/foo"
+                  if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                      value = node.value
+
+                      targets = (
+                          node.targets
+                          if isinstance(node, ast.Assign)
+                          else [node.target]
+                      )
+
+                      if is_string_literal(value):
+                          for target in targets:
+                              name = assigned_name(target)
+
+                              if name and looks_like_topic_name(name):
+                                  violations.append(
+                                      (
+                                          path,
+                                          node.lineno,
+                                          f"{name} = {value.value!r}",
+                                      )
+                                  )
+
+                  if isinstance(node, ast.Call):
+
+                      # Catches:
+                      # foo(topic="/foo")
+                      # foo(input_topic="/foo")
+                      # foo(topic_output="/foo")
+                      for keyword in node.keywords:
+                          if (
+                              keyword.arg
+                              and looks_like_topic_name(keyword.arg)
+                              and is_string_literal(keyword.value)
+                          ):
                               violations.append(
                                   (
                                       path,
-                                      node.lineno,
-                                      f'{name} = {value.value!r}',
+                                      keyword.value.lineno,
+                                      f"{keyword.arg}={keyword.value.value!r}",
                                   )
                               )
 
-              if isinstance(node, ast.Call):
+                      # Catches:
+                      # create_publisher(Msg, "/foo", 10)
+                      # create_subscription(Msg, "/foo", callback, 10)
+                      name = call_name(node.func)
+                      topic_arg_index = ROS_TOPIC_CALLS.get(name)
 
-                  # Examples caught:
-                  # foo(topic="/foo")
-                  # foo(input_topic="/foo")
-                  # foo(topic_output="/foo")
-                  for keyword in node.keywords:
                       if (
-                          keyword.arg
-                          and looks_like_topic_name(keyword.arg)
-                          and is_string_literal(keyword.value)
+                          topic_arg_index is not None
+                          and len(node.args) > topic_arg_index
+                          and is_string_literal(node.args[topic_arg_index])
                       ):
+                          arg = node.args[topic_arg_index]
+
                           violations.append(
                               (
                                   path,
-                                  keyword.value.lineno,
-                                  f'{keyword.arg}={keyword.value.value!r}',
+                                  arg.lineno,
+                                  f"{name}(..., {arg.value!r}, ...)",
                               )
                           )
 
-                  # ROS API positional topic:
-                  # create_publisher(Msg, "/foo", 10)
-                  # create_subscription(Msg, "/foo", callback, 10)
-                  name = call_name(node.func)
-                  topic_arg_index = ROS_TOPIC_CALLS.get(name)
+          if violations:
+              print()
+              print("Hardcoded ROS topic strings detected:")
+              print()
 
-                  if (
-                      topic_arg_index is not None
-                      and len(node.args) > topic_arg_index
-                      and is_string_literal(node.args[topic_arg_index])
-                  ):
-                      arg = node.args[topic_arg_index]
+              for path, line, description in violations:
+                  print(
+                      f"::error file={path},line={line}::"
+                      f"Hardcoded ROS topic: {description}"
+                  )
+                  print(f"  {path}:{line}: {description}")
 
-                      violations.append(
-                          (
-                              path,
-                              arg.lineno,
-                              f'{name}(..., {arg.value!r}, ...)',
-                          )
-                      )
+              print()
+              print("ROS topic names must not be hardcoded.")
+              sys.exit(1)
+
+          print("No hardcoded ROS topic strings found.")
+          PY
