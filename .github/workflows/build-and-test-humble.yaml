@@ -5,8 +5,26 @@ name: Build ROS2 Humble workspace(and run tests)
 on:
   push:
     branches: [humble, gh_workflow_testing]
+    paths-ignore:
+    - '**/*.md'
+    - 'docs/**'
+    - 'docker/**'
+    - 'documentation/**'
+    - 'drivers/**'
+    - 'simulation/**'
+    - 'LICENSE'
+    - '.gitignore'
   pull_request:
     branches: [humble, gh_workflow_testing]
+    paths-ignore:
+    - '**/*.md'
+    - 'docs/**'
+    - 'docker/**'
+    - 'documentation/**'
+    - 'drivers/**'
+    - 'simulation/**'
+    - 'LICENSE'
+    - '.gitignore'
 
 jobs:
   build-and-test:
