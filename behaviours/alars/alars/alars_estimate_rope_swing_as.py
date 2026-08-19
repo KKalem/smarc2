@@ -45,7 +45,7 @@ class EstimateLengthAndDamping:
 
         self._as = GentlerActionServer(
             self._node,
-            'estimate_length_and_damping',
+            'alars_estimate_rope_swing',
             self._on_goal_received,
             self._on_cancel_received,
             self._prepare_loop,
@@ -182,6 +182,7 @@ class EstimateLengthAndDamping:
                     if now - self._phase_start_time >= self._axis_selection_duration:
                         self._select_axis()
                 else:
+                    self.log(f'Processing measurement at, x={self._last_x:.1f}, y={self._last_y:.1f}')
                     self._process_measurement(now, (self._last_x, self._last_y)[self._axis_index])
 
             enough_periods = self._n_periods >= self._min_periods
