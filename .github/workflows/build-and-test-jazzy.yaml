@@ -1,0 +1,94 @@
+# .github/workflows/build-and-test-jazzy.yaml
+
+name: Build ROS2 Jazzy workspace (and run tests)
+
+on:
+  push:
+    branches: [jazzy, gh_workflow_testing]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'docker/**'
+      - 'documentation/**'
+      - 'drivers/**'
+      - 'simulation/**'
+      - 'LICENSE'
+      - '.gitignore'
+
+  pull_request:
+    branches: [jazzy, gh_workflow_testing]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'docker/**'
+      - 'documentation/**'
+      - 'drivers/**'
+      - 'simulation/**'
+      - 'LICENSE'
+      - '.gitignore'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: colcon_ws/src/${{ github.event.repository.name }}
+
+      - name: Install ROS 2 Jazzy
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common curl
+
+          sudo add-apt-repository universe
+
+          export ROS_APT_SOURCE_VERSION=$(
+            curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest \
+              | grep -F "tag_name" \
+              | awk -F'"' '{print $4}'
+          )
+
+          curl -L -o /tmp/ros2-apt-source.deb \
+          "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+
+          sudo dpkg -i /tmp/ros2-apt-source.deb
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            ros-jazzy-ros-base \
+            ros-dev-tools
+
+      - name: Check ROS
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          ros2 --help
+
+      - name: Get base submodules
+        shell: bash
+        working-directory: colcon_ws/src/${{ github.event.repository.name }}
+        run: |
+          git submodule update --init external_packages/mqtt_bridge/
+          git submodule update --init external_packages/ROS-TCP-Endpoint/
+
+      - name: Rosdep
+        shell: bash
+        working-directory: colcon_ws
+        run: |
+          sudo apt-get install -y python3-rosdep
+
+          sudo rosdep init
+          rosdep update
+
+          source /opt/ros/jazzy/setup.bash
+          PIP_BREAK_SYSTEM_PACKAGES=1 rosdep install --from-paths src --ignore-src -r -y
+
+      - name: Build workspace
+        shell: bash
+        working-directory: colcon_ws
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build --symlink-install

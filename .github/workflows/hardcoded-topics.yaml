@@ -6,11 +6,11 @@ on:
   pull_request:
     paths:
       - "**/*.py"
-    branches: [humble, gh_workflow_testing]
+    branches: [jazzy, gh_workflow_testing]
 
 jobs:
   check-hardcoded-topics:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository

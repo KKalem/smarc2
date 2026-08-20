@@ -2,12 +2,12 @@ name: Block Large Files in PR
 
 on:
   pull_request:
-    branches: [humble, gh_workflow_testing]
+    branches: [jazzy, gh_workflow_testing]
 
 jobs:
   check-large-files:
     name: Fail PR if files > 10MB
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v4
