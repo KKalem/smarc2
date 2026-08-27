@@ -198,6 +198,7 @@ class ExpectTopics(Node):
         # Keyed by the resolved ROS topic/node name.
         self.received_topics: dict[str, bool] = {}
         self.received_nodes: dict[str, bool] = {}
+        self.expected_content: dict[str, dict | None] = {}
 
         # Keep subscription objects alive.
         self.subs = []
@@ -232,6 +233,7 @@ class ExpectTopics(Node):
             qos = parse_qos(entry.get("qos"))
 
             self.received_topics[topic] = False
+            self.expected_content[topic] = entry.get("content")
 
             if topic == topic_spec:
                 self.get_logger().info(f"Expecting: {topic} [{type_name}]")
@@ -241,10 +243,14 @@ class ExpectTopics(Node):
                     f"<- {topic_spec}"
                 )
 
+            content = entry.get("content")
+            if content is not None:
+                 self.get_logger().info(f"  content: {content['field']} contains {content['value']!r}")
+
             subscription = self.create_subscription(
                 msg_type,
                 topic,
-                lambda msg, topic=topic: self._topic_callback(topic),
+                lambda msg, topic=topic: self._topic_callback(topic, msg),
                 qos,
             )
 
@@ -342,23 +348,100 @@ class ExpectTopics(Node):
             if "qos" in entry and not isinstance(entry["qos"], dict):
                 raise RuntimeError(f"topics[{index}].qos must be a dictionary")
 
+            if "content" in entry:
+                 content = entry["content"]
+ 
+                 if not isinstance(content, dict):
+                     raise RuntimeError(f"topics[{index}].content must be a dictionary")
+ 
+                 if "field" not in content:
+                     raise RuntimeError(f"topics[{index}].content is missing 'field'")
+ 
+                 if "value" not in content:
+                     raise RuntimeError(f"topics[{index}].content is missing 'value'")
+ 
+                 field = content["field"]
+                 if not isinstance(field, str) or not field:
+                     raise RuntimeError(f"topics[{index}].content.field must be a non-empty string")
+
         return topics
 
-    def _topic_callback(self, topic: str):
+    @staticmethod
+    def _get_message_field(msg, field: str):
+        """
+        Resolve a message field.
+        Dot-separated fields are supported, e.g.:
+            content:
+            field: "pose.position.x"
+            value: 10.0
+        """
+        value = msg
+        for part in field.split("."):
+            if not hasattr(value, part):
+                raise AttributeError(
+                    f"{type(value).__name__} has no field '{part}' "
+                    f"while resolving '{field}'"
+                )
+            value = getattr(value, part)
+            return value
+
+    @staticmethod
+    def _content_matches(actual, expected) -> bool:
+        """
+        Check whether the received field contains the expected value.
+        For lists/tuples/etc. Python's normal membership test is used.
+        For everything else, equality is used.
+        TODO: Maybe membership is not the right thing for listy types if someone expects
+        'exactly this list'. But we'll get there when we get there.
+        """
+        if isinstance(actual, str):
+            return str(expected).strip() == actual.strip()
+        try:
+            return expected in actual
+        except TypeError:
+            return actual == expected
+ 
+    def _topic_callback(self, topic: str, msg):
         # if it exists, and received, skip
         # if it doesnt exist, skip it too
         if self.received_topics.get(topic, True):
             return
 
+        content = self.expected_content.get(topic)
+        if content is not None:
+            field = content["field"]
+            expected = content["value"]
+
+            try:
+                actual = self._get_message_field(msg, field)
+            except AttributeError as exc:
+                self.get_logger().warning(f"Received {topic}, but could not inspect content: {exc}")
+                return
+
+            if not self._content_matches(actual, expected):
+                self.get_logger().debug(
+                    f"Received {topic}, but content did not match: "
+                    f"{field}={actual!r}, expected to contain {expected!r}"
+                )
+                return
+
+        # If we got here, either there was no content to check, or the content matched.
         self.received_topics[topic] = True
 
         received_count = sum(self.received_topics.values())
         total_count = len(self.received_topics)
 
-        self.get_logger().info(
-            f"Received: {topic} "
-            f"({received_count}/{total_count})"
-        )
+        if content is None:
+            self.get_logger().info(
+                f"Received: {topic} "
+                f"({received_count}/{total_count})"
+            )
+        else:
+            self.get_logger().info(
+                f"Received matching content: {topic} "
+                f"[{content['field']} contains {content['value']!r}] "
+                f"({received_count}/{total_count})"
+            )
 
     def _node_callback(self, node_name: str):
         # if it exists, and received, skip
